@@ -439,15 +439,15 @@ class AudiobookController:
     def load_text_file(self):
         if not self.check_and_reset_for_new_text_file('Load New Text File'):
             return
-        book_name = self.view.get_book_name()
-        if not book_name:
-            self.view.show_message("Error", "Please enter a book name before proceeding.", icon=QMessageBox.Warning)
-            return
-
         filepath = self.view.get_open_file_name(
             "Select Text File", "", "Text Files (*.txt);;All Files (*)"
         )
         if filepath:
+            book_name = self.view.get_book_name()
+            if not book_name:
+                # Use the chosen text file name as the default book name
+                book_name = os.path.splitext(os.path.basename(filepath))[0]
+                self.view.set_book_name(book_name)
             self.model.filepath = filepath
             sentences = self.model.load_sentences(filepath)
             if sentences:

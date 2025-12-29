@@ -1255,6 +1255,11 @@ class AudiobookMakerView(QMainWindow):
         return self.speakers.items()
     def get_book_name(self):
         return self.book_name_input.text().strip()
+    def set_book_name(self, name: str):
+        """
+        Populate the book name input with a sensible default (e.g., selected file name).
+        """
+        self.book_name_input.setText(name)
     def get_combobox_items(self, param):
         folder_path = param.get('folder_path', '.')
         look_for = param.get('look_for', 'folders')  # 'folders' or 'files'
