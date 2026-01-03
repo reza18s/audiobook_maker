@@ -1,8 +1,18 @@
 # s2s_engines.py
 import os
+import sys
 import json
 import torch
 import traceback
+
+def _add_module_path(rel):
+    base_dir = os.path.join(os.path.dirname(__file__), '..', 'modules', rel)
+    base_dir = os.path.abspath(base_dir)
+    if os.path.isdir(base_dir) and base_dir not in sys.path:
+        sys.path.insert(0, base_dir)
+
+# Ensure local RVC module is importable when not installed via pip
+_add_module_path('rvc-python')
 
 try:
     from rvc_python.infer import RVCInference

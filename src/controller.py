@@ -61,6 +61,29 @@ class AudioGenerationWorker(QThread):
     def sentence_generated_callback(self, idx, sentence):
         self.sentence_generated_signal.emit(idx, sentence)
         
+class ExportWorker(QThread):
+    finished_signal = Signal(str)  # output filename
+    error_signal = Signal(str)
+
+    def __init__(self, model, directory_path, pause_duration):
+        super().__init__()
+        self.model = model
+        self.directory_path = directory_path
+        self.pause_duration = pause_duration
+
+    def run(self):
+        try:
+            output_filename = self.model.export_audiobook(self.directory_path, self.pause_duration)
+            self.finished_signal.emit(output_filename)
+        except Exception as e:
+            # Treat cancel distinctly
+            msg = str(e)
+            if isinstance(e, Exception) and 'returned non-zero' in msg:
+                # ffmpeg or cancel
+                self.error_signal.emit(msg)
+            else:
+                self.error_signal.emit(msg)
+        
 class RegenerateAudioWorker(QThread):
     finished_signal = Signal(str, int)  # Signal to indicate completion
     error_signal = Signal(str)     # Signal to report errors
@@ -246,6 +269,9 @@ class AudiobookController:
         self.view.speakers_updated.connect(self.on_speakers_updated)
         self.view.start_generation_requested.connect(self.start_generation)
         self.view.stop_generation_requested.connect(self.stop_generation)
+        # Export cancel
+        if hasattr(self.view, 'stop_export_requested'):
+            self.view.stop_export_requested.connect(self.stop_export)
         self.view.tableWidget.customContextMenuRequested.connect(self.allow_speaker_assignment)
         self.view.text_item_changed.connect(self.update_sentence)
         self.view.toggle_delete_action_requested.connect(self.toggle_delete_column)
@@ -369,16 +395,81 @@ class AudiobookController:
         self.update_table_with_sentences()
                 
     def export_audiobook(self):
-        directory_path = self.view.get_existing_directory("Select an Audiobook Directory")
-        if not directory_path:
-            return  # Exit the function if no directory was selected
+        # Prefer the currently active audiobook directory; fall back to selection only if none.
+        if self.current_audiobook_directory and os.path.exists(self.current_audiobook_directory):
+            directory_path = self.current_audiobook_directory
+        else:
+            directory_path = self.view.get_existing_directory("Select an Audiobook Directory")
+            if not directory_path:
+                self.view.show_message("Error", "No audiobook is loaded. Please load or select one.", icon=QMessageBox.Warning)
+                return
 
         pause_duration = self.view.get_pause_between_sentences()
+        # Start export in a worker to keep UI responsive and allow cancel
+        self.export_worker = ExportWorker(self.model, directory_path, pause_duration)
+        # Show busy progress on dedicated export bar and enable cancel button
         try:
-            output_filename = self.model.export_audiobook(directory_path, pause_duration)
-            self.view.show_message("Success", f"Combined audiobook saved as {output_filename}", icon=QMessageBox.Information)
-        except FileNotFoundError as e:
-            self.view.show_message("Error", str(e), icon=QMessageBox.Warning)
+            # Keep generation bar unaffected; only export bar shows busy state
+            if hasattr(self.view, 'set_export_busy'):
+                self.view.set_export_busy(True)
+            elif hasattr(self.view, 'export_progress_bar'):
+                self.view.export_progress_bar.setRange(0, 0)
+        except Exception:
+            pass
+        if hasattr(self.view, 'on_enable_cancel_export'):
+            self.view.on_enable_cancel_export()
+        self.export_worker.finished_signal.connect(self.on_export_finished)
+        self.export_worker.error_signal.connect(self.on_export_error)
+        self.export_worker.start()
+    def on_export_finished(self, output_filename):
+        # Reset progress UI
+        try:
+            if hasattr(self.view, 'set_export_busy'):
+                self.view.set_export_busy(False)
+            if hasattr(self.view, 'set_export_progress'):
+                self.view.set_export_progress(100)
+            elif hasattr(self.view, 'export_progress_bar'):
+                self.view.export_progress_bar.setRange(0, 100)
+                self.view.export_progress_bar.setValue(100)
+        except Exception:
+            pass
+        if hasattr(self.view, 'on_disable_cancel_export'):
+            self.view.on_disable_cancel_export()
+        self.view.show_message("Success", f"Combined audiobook saved as {output_filename}", icon=QMessageBox.Information)
+    def on_export_error(self, message):
+        try:
+            if hasattr(self.view, 'set_export_busy'):
+                self.view.set_export_busy(False)
+            if hasattr(self.view, 'set_export_progress'):
+                self.view.set_export_progress(0)
+            elif hasattr(self.view, 'export_progress_bar'):
+                self.view.export_progress_bar.setRange(0, 100)
+                self.view.export_progress_bar.setValue(0)
+        except Exception:
+            pass
+        if hasattr(self.view, 'on_disable_cancel_export'):
+            self.view.on_disable_cancel_export()
+        # If canceled, show neutral info; else show warning
+        if 'non-zero' in message or 'Error opening input' in message:
+            self.view.show_message("Export Error", message, icon=QMessageBox.Warning)
+        else:
+            self.view.show_message("Export Error", message, icon=QMessageBox.Warning)
+    def stop_export(self):
+        # Request cancel from model
+        self.model.cancel_current_process()
+        # UI feedback
+        if hasattr(self.view, 'on_disable_cancel_export'):
+            self.view.on_disable_cancel_export()
+        try:
+            if hasattr(self.view, 'set_export_busy'):
+                self.view.set_export_busy(False)
+            if hasattr(self.view, 'set_export_progress'):
+                self.view.set_export_progress(0)
+            elif hasattr(self.view, 'export_progress_bar'):
+                self.view.export_progress_bar.setRange(0, 100)
+                self.view.export_progress_bar.setValue(0)
+        except Exception:
+            pass
     def extract_text(self, idx: int, concat_sentences:bool, length_search_text: int) -> str:
         text = self.model.text_audio_map[str(idx)]['sentence']
         if concat_sentences:
@@ -439,15 +530,15 @@ class AudiobookController:
     def load_text_file(self):
         if not self.check_and_reset_for_new_text_file('Load New Text File'):
             return
-        book_name = self.view.get_book_name()
-        if not book_name:
-            self.view.show_message("Error", "Please enter a book name before proceeding.", icon=QMessageBox.Warning)
-            return
-
         filepath = self.view.get_open_file_name(
             "Select Text File", "", "Text Files (*.txt);;All Files (*)"
         )
         if filepath:
+            book_name = self.view.get_book_name()
+            if not book_name:
+                # Use the chosen text file name as the default book name
+                book_name = os.path.splitext(os.path.basename(filepath))[0]
+                self.view.set_book_name(book_name)
             self.model.filepath = filepath
             sentences = self.model.load_sentences(filepath)
             if sentences:

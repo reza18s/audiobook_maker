@@ -40,6 +40,9 @@ class AudiobookModel:
         self.current_s2s_speaker_id = None
         self.current_s2s_parameters = None
         self.s2s_engine = None
+        # Process management for cancellable operations (e.g., export)
+        self.current_process = None
+        self.cancel_process = False
     def assign_speaker_to_sentence(self, idx, speaker_id):
         idx_str = str(idx)
         if idx_str in self.text_audio_map:
@@ -96,69 +99,113 @@ class AudiobookModel:
         }
         return text_audio_map
     def execute_subprocess(self, cmd):
-        with Popen(cmd, stdout=PIPE, bufsize=1, universal_newlines=True) as p:
-            for line in p.stdout:
-                print(line, end='')
+        # Combine stderr into stdout so ffmpeg logs (progress, warnings) are visible
+        # Keep streaming logs; allow external cancellation via self.cancel_process
+        self.cancel_process = False
+        with Popen(cmd, stdout=PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
+            self.current_process = p
+            try:
+                for line in p.stdout:
+                    # Keep logs visible
+                    print(line, end='')
+                    if self.cancel_process:
+                        try:
+                            p.terminate()
+                        except Exception:
+                            pass
+                        break
+            finally:
+                self.current_process = None
+        if self.cancel_process:
+            # Treat cancel as non-error for upstream handlers
+            raise CalledProcessError(-1, cmd)
         if p.returncode != 0:
             raise CalledProcessError(p.returncode, p.args)
+    def cancel_current_process(self):
+        self.cancel_process = True
+        if self.current_process:
+            try:
+                self.current_process.terminate()
+            except Exception:
+                pass
     def export_audiobook(self, directory_path, pause_duration):
+        # Prepare export directory and validate audiobook map
         dir_name = os.path.basename(directory_path)
         idx = 0
         exported_dir = os.path.join(directory_path, "exported_audiobooks")
         if not os.path.exists(exported_dir):
             os.makedirs(exported_dir)
+
         audio_map_path = os.path.join(directory_path, 'text_audio_map.json')
         if not os.path.exists(audio_map_path):
             raise FileNotFoundError("The selected directory is not a valid Audiobook Directory.")
+
         with open(audio_map_path, 'r', encoding='utf-8') as file:
             text_audio_map = json.load(file)
-        sorted_audio_paths = [text_audio_map[key]['audio_path'] for key in sorted(text_audio_map, key=lambda k: int(k))]
-        def probe_audio_properties(file_path):
-            cmd = [
-                'ffprobe',
-                '-v', 'error',
-                '-select_streams', 'a:0',
-                '-show_entries', 'stream=sample_rate,channels,bits_per_sample',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                file_path
-            ]
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(f"ffprobe error: {result.stderr}")
-            lines = result.stdout.strip().split('\n')
-            if len(lines) != 3:
-                raise ValueError("ffprobe did not return sample_rate, channels, and bits_per_sample")
-            sample_rate, channels, bits_per_sample = lines
-            return int(sample_rate), int(channels), int(bits_per_sample)
+
+        # Collect only generated, existing audio files in proper order
+        sorted_items = sorted(text_audio_map.items(), key=lambda kv: int(kv[0]))
+        sorted_audio_paths = []
+        for _, entry in sorted_items:
+            ap = entry.get('audio_path', '')
+            if entry.get('generated') and ap and os.path.exists(ap):
+                sorted_audio_paths.append(ap)
+
+        if not sorted_audio_paths:
+            raise ValueError("No generated audio found to export.")
+
+        # Build optional silence segment using properties from first audio via pydub
         silence_concat_command = ""
-        if pause_duration > 0:
-            pause_length = pause_duration * 1000
-            if not sorted_audio_paths:
-                raise ValueError("No audio files found to determine silence properties.")
-            first_audio_path = sorted_audio_paths[0]
-            sample_rate, channels, bits_per_sample = probe_audio_properties(first_audio_path)
-            silence = AudioSegment.silent(duration=pause_length, frame_rate=sample_rate)
-            silence = silence.set_channels(channels)
-            silence = silence.set_sample_width(bits_per_sample // 8)
+        silence_path = None
+        if pause_duration and pause_duration > 0:
+            pause_ms = int(pause_duration * 1000)
+            try:
+                first_seg = AudioSegment.from_file(sorted_audio_paths[0])
+                silence = AudioSegment.silent(duration=pause_ms, frame_rate=first_seg.frame_rate)
+                silence = silence.set_channels(first_seg.channels)
+                silence = silence.set_sample_width(first_seg.sample_width)
+            except Exception:
+                # Fallback to common PCM settings
+                silence = AudioSegment.silent(duration=pause_ms, frame_rate=44100)
+                silence = silence.set_channels(2).set_sample_width(2)
             silence_path = os.path.join(directory_path, "silence.wav")
             silence.export(silence_path, format="wav")
-            silence_concat_command = f"file '{os.path.basename(silence_path)}'\n"
-        first = True
+            # Use absolute path in concat list to avoid relative duplication
+            silence_abs = os.path.abspath(silence_path)
+            silence_concat_command = f"file '{silence_abs}'\n"
+
+        # Write concat list with absolute paths for reliability
         file_list_path = os.path.join(directory_path, 'file_list.txt')
-        with open(file_list_path, 'w') as file:
-            for sap in sorted_audio_paths:
-                if first:
-                    first = False
-                else:
-                    file.write(silence_concat_command)
-                file.write(f"file {os.path.basename(sap)}\n")
+        with open(file_list_path, 'w', encoding='utf-8') as fl:
+            first = True
+            for ap in sorted_audio_paths:
+                if not first and silence_concat_command:
+                    fl.write(silence_concat_command)
+                first = False
+                # Write absolute path or basename to prevent path being resolved twice by ffmpeg
+                ap_abs = os.path.abspath(ap)
+                fl.write(f"file '{ap_abs}'\n")
+
+        # Choose a unique output filename
         while True:
             new_audiobook_name = f"{dir_name}_audiobook_{idx}.mp3"
             new_audiobook_path = os.path.join(exported_dir, new_audiobook_name)
             if not os.path.exists(new_audiobook_path):
                 break
             idx += 1
-        self.execute_subprocess([AudioSegment.silent(0).ffmpeg, '-f', 'concat', '-safe', '0', '-i', file_list_path, new_audiobook_path])
+
+        # Run ffmpeg concat using the discovered ffmpeg path
+        ffmpeg_bin = AudioSegment.silent(0).ffmpeg
+        file_list_abs = os.path.abspath(file_list_path)
+        self.execute_subprocess([ffmpeg_bin, '-f', 'concat', '-safe', '0', '-i', file_list_abs, new_audiobook_path])
+
+        # Cleanup temporary silence file if created
+        if silence_path and os.path.exists(silence_path):
+            try:
+                os.remove(silence_path)
+            except Exception:
+                pass
+
         print(f"Combined audiobook saved in {new_audiobook_name}")
         return new_audiobook_name
     def filter_paragraph(self, paragraph):

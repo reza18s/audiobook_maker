@@ -662,6 +662,7 @@ class AudiobookMakerView(QMainWindow):
     speakers_updated = Signal(object)
     start_generation_requested = Signal()
     stop_generation_requested = Signal()
+    stop_export_requested = Signal()
     text_item_changed = Signal(int, str)
     toggle_delete_action_requested = Signal()
     tts_engine_changed = Signal(object)
@@ -825,6 +826,16 @@ class AudiobookMakerView(QMainWindow):
         self.previous_search.clicked.connect(self.on_previous_search)
         self.toggle_engines_button = QPushButton("Toggle TTS/S2S")
         self.toggle_engines_button.clicked.connect(self.toggle_engines_column)
+        # Export button in header
+        self.export_button = QPushButton("Export Audiobook", self)
+        self.export_button.clicked.connect(self.on_export_audiobook_triggered)
+        # Export cancel control (compact X)
+        self.export_cancel_button = QPushButton("X", self)
+        self.export_cancel_button.setToolTip("Cancel Export")
+        self.export_cancel_button.clicked.connect(self.on_cancel_export_clicked)
+        self.export_cancel_button.setEnabled(False)
+        self.export_cancel_button.setFixedWidth(24)
+        self.export_cancel_button.setStyleSheet("QPushButton { color: #A9A9A9; }")
 
         # QCheckBoxes
         self.use_s2s_checkbox = QCheckBox("Use s2s Engine", self)
@@ -861,10 +872,25 @@ class AudiobookMakerView(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search for")
 
-        # QProgressBar
+        # QProgressBar (generation)
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+
+        # QProgressBar (export - separate)
+        self.export_progress_bar = QProgressBar(self)
+        self.export_progress_bar.setMaximum(100)
+        self.export_progress_bar.setValue(0)
+        self.export_progress_bar.setTextVisible(False)
+
+        # Progress info (generation)
+        self.progress_info_label = QLabel("Done: 0% | Left: 100%", self)
+        self.progress_info_label.setAlignment(Qt.AlignLeft)
+
+        # Progress info (export)
+        self.export_progress_info_label = QLabel("Export: idle", self)
+        self.export_progress_info_label.setAlignment(Qt.AlignLeft)
         
         # QScrollAreas
         self.s2s_options_scroll_area = QScrollArea()
@@ -1006,8 +1032,22 @@ class AudiobookMakerView(QMainWindow):
         left_layout.addWidget(self.play_all_button)
         left_layout.addWidget(self.regenerate_button)
         left_layout.addLayout(self.regenerate_bulk_layout)
+        left_layout.addWidget(self.export_button)
+        # Cancel button removed from sidebar; X is placed next to progress bar
         left_layout.addWidget(self.continue_audiobook_button)
-        left_layout.addWidget(self.progress_bar)
+        # Progress layout with generation bar and info label
+        progress_layout = QHBoxLayout()
+        progress_layout.addWidget(self.progress_bar, 1)
+        progress_layout.addWidget(self.progress_info_label)
+        left_layout.addLayout(progress_layout)
+
+        # Export progress layout with bar and info label
+        export_progress_layout = QHBoxLayout()
+        # Add compact X button before the export progress bar
+        export_progress_layout.addWidget(self.export_cancel_button)
+        export_progress_layout.addWidget(self.export_progress_bar, 1)
+        export_progress_layout.addWidget(self.export_progress_info_label)
+        left_layout.addLayout(export_progress_layout)
         left_layout.addLayout(self.export_pause_layout)
         left_layout.addStretch(1)  # Add stretchable empty space
         right_layout.addLayout(right_inner_layout)
@@ -1219,7 +1259,8 @@ class AudiobookMakerView(QMainWindow):
         buttons = [self.regenerate_button,
                    self.regenerate_bulk_button,
                    self.start_generation_button,
-                   self.continue_audiobook_button]
+                   self.continue_audiobook_button,
+                   self.export_button]
         actions = [self.load_audiobook_action,
                    self.export_audiobook_action,
                    self.update_audiobook_action]
@@ -1237,7 +1278,8 @@ class AudiobookMakerView(QMainWindow):
         buttons = [self.regenerate_button,
                    self.regenerate_bulk_button,
                    self.start_generation_button,
-                   self.continue_audiobook_button]
+                   self.continue_audiobook_button,
+                   self.export_button]
         actions = [self.load_audiobook_action,
                    self.export_audiobook_action,
                    self.update_audiobook_action]
@@ -1255,6 +1297,11 @@ class AudiobookMakerView(QMainWindow):
         return self.speakers.items()
     def get_book_name(self):
         return self.book_name_input.text().strip()
+    def set_book_name(self, name: str):
+        """
+        Populate the book name input with a sensible default (e.g., selected file name).
+        """
+        self.book_name_input.setText(name)
     def get_combobox_items(self, param):
         folder_path = param.get('folder_path', '.')
         look_for = param.get('look_for', 'folders')  # 'folders' or 'files'
@@ -1584,8 +1631,16 @@ class AudiobookMakerView(QMainWindow):
     def on_enable_stop_button(self):
         self.stop_generation_button.setEnabled(True)
         self.stop_generation_button.setStyleSheet("")
+    def on_disable_cancel_export(self):
+        self.export_cancel_button.setEnabled(False)
+        self.export_cancel_button.setStyleSheet("QPushButton { color: #A9A9A9; }")
+    def on_enable_cancel_export(self):
+        self.export_cancel_button.setEnabled(True)
+        self.export_cancel_button.setStyleSheet("")
     def on_export_audiobook_triggered(self):
         self.export_audiobook_requested.emit()
+    def on_cancel_export_clicked(self):
+        self.stop_export_requested.emit()
     def on_export_pause_slider_changed(self, value):
         pause_duration = value / 10.0
         self.updatePauseLabel(pause_duration)
@@ -1735,7 +1790,47 @@ class AudiobookMakerView(QMainWindow):
         self.background_pixmap = pixmap  # Save the pixmap as an attribute
         self.update_background()
     def set_progress(self, value):
-        self.progress_bar.setValue(value)
+        try:
+            v_int = int(value)
+        except Exception:
+            try:
+                v_int = int(float(value))
+            except Exception:
+                v_int = 0
+        v_int = max(0, min(100, v_int))
+        self.progress_bar.setValue(v_int)
+        left = 100 - v_int
+        if hasattr(self, 'progress_info_label') and self.progress_info_label is not None:
+            self.progress_info_label.setText(f"Done: {v_int}% | Left: {left}%")
+
+    def set_export_progress(self, value):
+        try:
+            v_int = int(value)
+        except Exception:
+            try:
+                v_int = int(float(value))
+            except Exception:
+                v_int = 0
+        v_int = max(0, min(100, v_int))
+        self.export_progress_bar.setValue(v_int)
+        if hasattr(self, 'export_progress_info_label') and self.export_progress_info_label is not None:
+            if v_int == 0:
+                self.export_progress_info_label.setText("Export: idle")
+            elif v_int >= 100:
+                self.export_progress_info_label.setText("Export: done")
+            else:
+                self.export_progress_info_label.setText(f"Export: {v_int}%")
+
+    def set_export_busy(self, busy):
+        try:
+            if busy:
+                self.export_progress_bar.setRange(0, 0)  # Indeterminate
+                if hasattr(self, 'export_progress_info_label') and self.export_progress_info_label is not None:
+                    self.export_progress_info_label.setText("Export: working…")
+            else:
+                self.export_progress_bar.setRange(0, 100)
+        except Exception:
+            pass
     def set_row_speaker(self, row, speaker_id, speaker_name):
         self.set_row_speaker_color(row, speaker_id)
         speaker_item = QTableWidgetItem(speaker_name)

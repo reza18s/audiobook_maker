@@ -6,11 +6,23 @@ Note for sliders: Due to Qt6 sliders, to mimick decimal values, a "step" paramet
 For example, let's take "speed" from f5tts.  It needs to be a decimal value but Qt6 slider only allows for whole numbers  The tts_config has a step=100 with min=1 and max=200, so any value between those can be chosen.  Therefore, if the slider outputs 30, it should be 0.30 as round(30 / step, 2) = 0.30
 '''
 
-import importlib.util, os
+import importlib.util, os, sys
 import json
 import numpy as np
 import soundfile as sf
 import traceback
+def _add_module_path(rel):
+    base_dir = os.path.join(os.path.dirname(__file__), '..', 'modules', rel)
+    base_dir = os.path.abspath(base_dir)
+    if os.path.isdir(base_dir) and base_dir not in sys.path:
+        sys.path.insert(0, base_dir)
+
+# Ensure local modules are importable when not installed via pip
+_add_module_path('tortoise_tts_api')
+_add_module_path('styletts-api')
+_add_module_path('F5-TTS')
+_add_module_path('GPT-SoVITS-Package')
+
 try:
     from tortoise_tts_api.inference.load import load_tts as load_tortoise_engine
     from tortoise_tts_api.inference.generate import generate as tortoise_generate
