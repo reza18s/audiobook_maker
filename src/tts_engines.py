@@ -382,6 +382,35 @@ def load_with_tortoise(**kwargs):
     if autoregressive_model_path:
         autoregressive_model_path = os.path.join(ar_folder_path, autoregressive_model_path)
 
+    # Guardrail: users sometimes select the wrong Tortoise checkpoint (e.g. clvp2.pth) as the AR model.
+    # If the chosen file doesn't look like an AR checkpoint, prefer a local 'autoregressive.*' if present.
+    if autoregressive_model_path:
+        chosen_base = os.path.basename(autoregressive_model_path).lower()
+        looks_like_ar = (
+            "autoregressive" in chosen_base
+            or chosen_base.endswith("ar.pth")
+            or chosen_base.endswith("ar.pt")
+        )
+        if not looks_like_ar and ar_folder_path:
+            for candidate in ("autoregressive.pth", "autoregressive.pt"):
+                candidate_path = os.path.join(ar_folder_path, candidate)
+                if os.path.exists(candidate_path):
+                    if _debug_enabled():
+                        print(
+                            f"Selected AR model '{autoregressive_model_path}' doesn't look like an autoregressive checkpoint; "
+                            f"using '{candidate_path}' instead."
+                        )
+                    autoregressive_model_path = candidate_path
+                    break
+            else:
+                # Fall back to Tortoise's bundled default if available.
+                if _debug_enabled():
+                    print(
+                        f"Selected AR model '{autoregressive_model_path}' doesn't look like an autoregressive checkpoint; "
+                        "falling back to default."
+                    )
+                autoregressive_model_path = None
+
     tokenizer_json_path = kwargs.get("tokenizer_json_path")
     if tokenizer_json_path:
         tokenizer_json_path = os.path.join(tokenizer_folder_path, tokenizer_json_path)

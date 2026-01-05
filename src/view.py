@@ -1313,6 +1313,7 @@ class AudiobookMakerView(QMainWindow):
         none_option_label = param.get('none_option_label', 'Default')  # Label for the None option
         custom_options = param.get('custom_options', None)
         relies_on = param.get('relies_on', None)
+        recursive = param.get('recursive', False)
         
         if relies_on:
             # Get the value of the relied-on parameter
@@ -1370,16 +1371,40 @@ class AudiobookMakerView(QMainWindow):
                             patterns.append(token)
             if not patterns:
                 patterns = ['*']
-                
+
+            def _is_dot_path(path: str) -> bool:
+                base = os.path.basename(path)
+                if base.startswith('.'):
+                    return True
+                parts = os.path.normpath(path).split(os.sep)
+                return any(p.startswith('.') for p in parts if p)
+
             try:
-                for entry in os.scandir(folder_path):
-                    if not entry.is_file():
-                        continue
-                    # Avoid offering dotfiles like .gitignore unless explicitly requested.
-                    if entry.name.startswith('.') and not any(p.startswith('.') for p in patterns):
-                        continue
-                    if any(fnmatch.fnmatch(entry.name, pattern) for pattern in patterns):
-                        items.append(entry.name)
+                if recursive:
+                    for root, dirs, files in os.walk(folder_path):
+                        # Skip dot-directories like .locks
+                        dirs[:] = [d for d in dirs if not d.startswith('.')]
+                        for filename in files:
+                            if filename.startswith('.') and not any(p.startswith('.') for p in patterns):
+                                continue
+                            if not any(fnmatch.fnmatch(filename, pattern) for pattern in patterns):
+                                continue
+
+                            abs_path = os.path.join(root, filename)
+                            rel_path = os.path.relpath(abs_path, folder_path)
+                            if _is_dot_path(rel_path) and not any(p.startswith('.') for p in patterns):
+                                continue
+                            items.append(rel_path)
+                    items.sort(key=lambda s: s.lower())
+                else:
+                    for entry in os.scandir(folder_path):
+                        if not entry.is_file():
+                            continue
+                        # Avoid offering dotfiles like .gitignore unless explicitly requested.
+                        if entry.name.startswith('.') and not any(p.startswith('.') for p in patterns):
+                            continue
+                        if any(fnmatch.fnmatch(entry.name, pattern) for pattern in patterns):
+                            items.append(entry.name)
             except Exception as e:
                 self.show_message("Error", f"Error reading directory {folder_path}: {e}", QMessageBox.Warning)
                 return items

@@ -14,7 +14,7 @@
                         "type": "file",
                         "attribute": "upload_tortoise_model_path",
                         "file_filter": "Model Files (*.pth *.pt);;All Files (*)",
-                        "save_path": "engines/tortoise/models",
+                        "save_path": "models/tortoise",
                         "save_format": "file"
                     },
                     {
@@ -48,9 +48,9 @@
                     "type": "combobox",
                     "attribute": "autoregressive_model_path",
                     "function": "get_combobox_items",
-                    "folder_path": "engines/tortoise/models",
+                    "folder_path": "models/tortoise",
                     "look_for": "files",
-                    "file_filter": "*.pth",
+                    "file_filter": "autoregressive*.pth;autoregressive*.pt",
                     "include_none_option": true
                 },
                 {
@@ -355,7 +355,8 @@
                     "function": "get_combobox_items",
                     "folder_path": "engines/f5tts/models",
                     "look_for": "files",
-                    "file_filter": "*.pt;*.safetensors",
+                    "file_filter": "*.pth;*.pt;*.safetensors",
+                    "recursive": true,
                     "include_none_option": true
                 },
                 {
@@ -365,7 +366,8 @@
                     "function": "get_combobox_items",
                     "folder_path": "engines/f5tts/tokenizers",
                     "look_for": "files",
-                    "file_filter": "*.txt",
+                    "file_filter": "*.txt;*.json",
+                    "recursive": true,
                     "include_none_option": true
                 },
                 {
