@@ -341,6 +341,9 @@ class WordReplacerView(QMainWindow):
         
         self._init_ui()
 
+
+    DEFAULT_TTS_ENGINE_NAME = "F5TTS"
+
     def _init_ui(self):
         # Set the title and initial window size
         self.setWindowTitle("Word Replacer")
@@ -1348,23 +1351,33 @@ class AudiobookMakerView(QMainWindow):
         elif look_for == 'files':
             patterns = []
             if file_filter:
-                # Parse Qt-style file dialog filters like "Model Files (*.pth, *.ckpt);;All Files (*)"
-                filter_parts = file_filter.split(';;')
-                for part in filter_parts:
-                    # Extract patterns from within parentheses
-                    pattern_match = re.search(r'\((.*?)\)', part)
-                    if pattern_match:
-                        inner_patterns = pattern_match.group(1).split()
-                        for pattern in inner_patterns:
-                            # Remove commas and clean up the pattern
-                            clean_pattern = pattern.strip().rstrip(',')
-                            if clean_pattern and clean_pattern != '*':  # Skip generic '*' pattern
-                                patterns.append(clean_pattern)
+                # Supports either a Qt-style filter string ("Model Files (*.pth *.ckpt);;All Files (*)")
+                # or a plain glob like "*.json".
+                if ';;' in file_filter or '(' in file_filter:
+                    filter_parts = file_filter.split(';;')
+                    for part in filter_parts:
+                        pattern_match = re.search(r'\((.*?)\)', part)
+                        if pattern_match:
+                            inner_patterns = pattern_match.group(1).split()
+                            for pattern in inner_patterns:
+                                clean_pattern = pattern.strip().rstrip(',')
+                                if clean_pattern and clean_pattern != '*':
+                                    patterns.append(clean_pattern)
+                else:
+                    # Treat as one-or-more glob patterns.
+                    for token in re.split(r'[;,\s]+', file_filter.strip()):
+                        if token and token != '*':
+                            patterns.append(token)
             if not patterns:
                 patterns = ['*']
                 
             try:
                 for entry in os.scandir(folder_path):
+                    if not entry.is_file():
+                        continue
+                    # Avoid offering dotfiles like .gitignore unless explicitly requested.
+                    if entry.name.startswith('.') and not any(p.startswith('.') for p in patterns):
+                        continue
                     if any(fnmatch.fnmatch(entry.name, pattern) for pattern in patterns):
                         items.append(entry.name)
             except Exception as e:
@@ -1542,7 +1555,7 @@ class AudiobookMakerView(QMainWindow):
         if index_tts >= 0:
             self.tts_engine_combo.setCurrentIndex(index_tts)
         else:
-            self.tts_engine_combo.setCurrentIndex(0)  # Default to first TTS engine
+            self.set_tts_default_engine_selection()  # Default to preferred engine (or first)
         self.tts_engine_combo.blockSignals(False)  # Unblock signals
 
         # Update TTS options
@@ -1736,6 +1749,19 @@ class AudiobookMakerView(QMainWindow):
     def populate_tts_engines(self):
         engines = [engine['name'] for engine in self.tts_config.get('tts_engines')]
         self.tts_engine_combo.addItems(engines)
+        self.set_tts_default_engine_selection()
+
+    def set_tts_default_engine_selection(self):
+        if self.tts_engine_combo.count() <= 0:
+            return
+
+        index = self.tts_engine_combo.findText(DEFAULT_TTS_ENGINE_NAME)
+        self.tts_engine_combo.blockSignals(True)
+        if index >= 0:
+            self.tts_engine_combo.setCurrentIndex(index)
+        else:
+            self.tts_engine_combo.setCurrentIndex(0)
+        self.tts_engine_combo.blockSignals(False)
     
     def release_media_player_resources(self):
         # Reinitialize the media player to release any file handles
@@ -1754,7 +1780,7 @@ class AudiobookMakerView(QMainWindow):
         self.disable_speaker_menu()
 
         # Reset TTS and s2s options
-        self.tts_engine_combo.setCurrentIndex(0)
+        self.set_tts_default_engine_selection()
         self.update_tts_options(self.get_tts_engine())
         self.s2s_engine_combo.setCurrentIndex(0)
         self.update_s2s_options(self.get_s2s_engine())
@@ -1881,8 +1907,7 @@ class AudiobookMakerView(QMainWindow):
     def set_start_generation_button_text(self, text):
         self.start_generation_button.setText(text)
     def set_tts_initial_index(self):
-        if self.tts_engine_combo.count() > 0:
-            self.tts_engine_combo.setCurrentIndex(0)
+        self.set_tts_default_engine_selection()
     def set_tts_parameters(self, settings):
         tts_engine = self.get_tts_engine()
         engine_config = next(

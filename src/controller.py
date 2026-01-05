@@ -1,9 +1,93 @@
 # controller.py 
- 
-import sys 
+
+import os
+import sys
+import warnings
+
+
+def _truthy_env(name: str):
+    v = os.environ.get(name, "").strip().lower()
+    if v in {"1", "true", "yes", "on"}:
+        return True
+    if v in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _settings_yaml_flag(key: str):
+    """Best-effort, YAML-lite flag lookup to avoid importing extra deps early."""
+    try:
+        path = os.path.join("configs", "settings.yaml")
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.lower().startswith(key.lower() + ":"):
+                    _, value = line.split(":", 1)
+                    value = value.strip().strip('"').strip("'").lower()
+                    if value in {"1", "true", "yes", "on"}:
+                        return True
+                    if value in {"0", "false", "no", "off"}:
+                        return False
+                    return None
+    except Exception:
+        return None
+    return None
+
+
+def _should_enable_offline_mode() -> bool:
+    explicit = _truthy_env("AUDIOBOOK_MAKER_OFFLINE")
+    if explicit is not None:
+        return explicit
+
+    from_settings = _settings_yaml_flag("offline_mode")
+    if from_settings is not None:
+        return from_settings
+
+    # Auto-detect: if DNS can't resolve huggingface.co, assume offline.
+    try:
+        import socket
+
+        socket.getaddrinfo("huggingface.co", 443)
+        return False
+    except Exception:
+        return True
+
+
+def _enable_hf_offline_mode():
+    # Must be set before transformers/huggingface_hub are used.
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    hf_home = os.path.join(repo_root, "models", "huggingface")
+
+    os.environ.setdefault("HF_HOME", hf_home)
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+
+if _should_enable_offline_mode():
+    _enable_hf_offline_mode()
+
+# Avoid noisy/failed native extension builds on Windows when optional packages are present.
+# These are safe no-ops if the corresponding packages aren't used.
+os.environ.setdefault("DS_BUILD_OPS", "0")
+os.environ.setdefault("DS_BUILD_AIO", "0")
+os.environ.setdefault("DEEPSPEED_LOG_LEVEL", "ERROR")
+
+# Suppress known non-actionable upstream warnings.
+warnings.filterwarnings(
+    "ignore",
+    message=r"`torch\.utils\._pytree\._register_pytree_node` is deprecated\..*",
+    category=FutureWarning,
+)
+
 from PySide6.QtWidgets import QApplication, QMessageBox 
 from PySide6.QtCore import QThread, Signal, QObject
-import os
 import shutil
 import time
 import traceback

@@ -11,6 +11,46 @@ import json
 import numpy as np
 import soundfile as sf
 import traceback
+
+
+class EngineUnavailable(RuntimeError):
+    pass
+
+
+_DEBUG_CACHE = None
+
+
+def _debug_enabled() -> bool:
+    """Returns True when debug logging/tracebacks should be printed."""
+    global _DEBUG_CACHE
+    if _DEBUG_CACHE is not None:
+        return _DEBUG_CACHE
+
+    env = os.environ.get("AUDIOBOOK_MAKER_DEBUG", "").strip().lower()
+    if env in {"1", "true", "yes", "on"}:
+        _DEBUG_CACHE = True
+        return True
+    if env in {"0", "false", "no", "off"}:
+        _DEBUG_CACHE = False
+        return False
+
+    # Fall back to configs/settings.yaml without requiring PyYAML.
+    try:
+        with open("configs/settings.yaml", "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.lower().startswith("debug_mode"):
+                    _, value = line.split(":", 1)
+                    value = value.strip().strip('"').strip("'").lower()
+                    _DEBUG_CACHE = value in {"1", "true", "yes", "on"}
+                    return _DEBUG_CACHE
+    except Exception:
+        pass
+
+    _DEBUG_CACHE = False
+    return False
 def _add_module_path(rel):
     base_dir = os.path.join(os.path.dirname(__file__), '..', 'modules', rel)
     base_dir = os.path.abspath(base_dir)
@@ -23,33 +63,68 @@ _add_module_path('styletts-api')
 _add_module_path('F5-TTS')
 _add_module_path('GPT-SoVITS-Package')
 
-try:
-    from tortoise_tts_api.inference.load import load_tts as load_tortoise_engine
-    from tortoise_tts_api.inference.generate import generate as tortoise_generate
-except Exception as e:
-    print(f"Tortoise not available, received error: {e}")
-    print("Full traceback:")
-    traceback.print_exc()
-    
-try:
-    from styletts_api.inference.load import load_all_models
-    from styletts_api.inference.generate import generate_audio as stts_generate
-except Exception as e:
-    print(f"StyleTTS not available, received error: {e}")
-    print("Full traceback:")
-    traceback.print_exc()
-try:
-    from f5_tts.api import F5TTS
-except Exception as e:
-    print(f"F5-TTS is not available, received error: {e}")
-    print("Full traceback:")
-    traceback.print_exc()
-try:
-    from GPT_SoVITS.TTS_infer_pack.TTS import TTS, TTS_Config
-except Exception as e:
-    print(f"GPT-SoVITS is not available, received error: {e}")
-    print("Full traceback:")
-    traceback.print_exc()
+# Lazy-imported engine entrypoints.
+load_tortoise_engine = None
+tortoise_generate = None
+load_all_models = None
+stts_generate = None
+F5TTS = None
+
+# Optional dependency; will remain None until GPT-SoVITS is selected.
+TTS = None
+TTS_Config = None
+
+
+def _require_tortoise():
+    global load_tortoise_engine, tortoise_generate
+    if load_tortoise_engine is not None and tortoise_generate is not None:
+        return
+    try:
+        from tortoise_tts_api.inference.load import load_tts as _load_tts
+        from tortoise_tts_api.inference.generate import generate as _generate
+        load_tortoise_engine = _load_tts
+        tortoise_generate = _generate
+    except Exception as e:
+        if _debug_enabled():
+            traceback.print_exc()
+        raise EngineUnavailable(
+            "Tortoise is not available in this environment. "
+            "Install/enable its dependencies, or choose a different TTS engine."
+        ) from e
+
+
+def _require_styletts2():
+    global load_all_models, stts_generate
+    if load_all_models is not None and stts_generate is not None:
+        return
+    try:
+        from styletts_api.inference.load import load_all_models as _load_all_models
+        from styletts_api.inference.generate import generate_audio as _generate_audio
+        load_all_models = _load_all_models
+        stts_generate = _generate_audio
+    except Exception as e:
+        if _debug_enabled():
+            traceback.print_exc()
+        raise EngineUnavailable(
+            "StyleTTS2 is not available in this environment (missing 'styletts2' package). "
+            "Install StyleTTS2 or choose a different TTS engine."
+        ) from e
+
+
+def _require_f5tts():
+    global F5TTS
+    if F5TTS is not None:
+        return F5TTS
+    try:
+        from f5_tts.api import F5TTS as _F5TTS
+        F5TTS = _F5TTS
+        return F5TTS
+    except Exception as e:
+        if _debug_enabled():
+            traceback.print_exc()
+        raise EngineUnavailable(
+            "F5-TTS could not be imported. Ensure the F5-TTS module/dependencies are installed."
+        ) from e
 
 def generate_audio(tts_engine, sentence, voice_parameters, tts_engine_name, audio_path):
     tts_engine_name = tts_engine_name.lower()
@@ -80,6 +155,7 @@ def generate_with_pyttsx3(tts_engine, sentence, voice_parameters, audio_path):
     return os.path.exists(audio_path)
 
 def generate_with_styletts2(tts_engine, sentence, voice_parameters, audio_path):
+    _require_styletts2()
     engine_name = "StyleTTS2" 
     # Load the config and convert it to an object
     tts_config = load_config("configs/tts_config.json")
@@ -127,16 +203,16 @@ def generate_with_styletts2(tts_engine, sentence, voice_parameters, audio_path):
     return audio_path
 
 def generate_with_tortoise(tts_engine, sentence, voice_parameters, audio_path):
-    engine_name = "Tortoise" 
-    # Load the config and convert it to an object
-    tts_config = load_config("configs/tts_config.json")
-    tts_settings = dict_to_object(tts_config)
+    _require_tortoise()
+    engine_name = "Tortoise"
+    tts_settings = load_tts_config()
+    tortoise_engine_config = find_engine_config(engine_name, tts_settings)
 
-    styletts_engine_config = None
-    for engine in tts_settings.tts_engines:
-        if engine.name.lower() == engine_name.lower():  # Case-insensitive matching
-            tortoise_engine_config = engine
-            break
+    if tortoise_engine_config is None:
+        raise RuntimeError("Tortoise engine configuration not found")
+
+    if tts_engine is None:
+        raise RuntimeError("Tortoise engine was not loaded")
     if tts_engine is None:
         return False
     voice = voice_parameters.get('voice', 'random')
@@ -145,6 +221,7 @@ def generate_with_tortoise(tts_engine, sentence, voice_parameters, audio_path):
     num_autoregressive_samples = sample_size
     seed = voice_parameters.get("tortoise_seed", -1)
     iterations = voice_parameters.get("tortoise_iterations", 25)
+    max_text_tokens = voice_parameters.get("tortoise_max_text_tokens", 390)
     extra_voice_dirs = next((param.folder_path for param in tortoise_engine_config.parameters if param.attribute == "voice"), [])
 
     result = tortoise_generate(
@@ -156,7 +233,8 @@ def generate_with_tortoise(tts_engine, sentence, voice_parameters, audio_path):
         num_autoregressive_samples=num_autoregressive_samples,
         diffusion_iterations=iterations,
         audio_path=audio_path,
-        extra_voice_dirs=[extra_voice_dirs]
+        extra_voice_dirs=[extra_voice_dirs],
+        max_text_tokens=max_text_tokens,
     )
     return os.path.exists(audio_path)
 
@@ -165,6 +243,7 @@ def generate_with_xtts(tts_engine, sentence, voice_parameters, audio_path):
     pass
 
 def generate_with_f5tts(tts_engine, sentence, voice_parameters, audio_path):
+    _require_f5tts()
     engine_name = "f5tts"
     tts_settings = load_tts_config()
     f5tts_engine_config = find_engine_config(engine_name, tts_settings)
@@ -182,9 +261,7 @@ def generate_with_f5tts(tts_engine, sentence, voice_parameters, audio_path):
     
     speed_step = next((param.step for param in f5tts_engine_config.parameters if param.attribute=="f5tts_speed"), 100)
     speed = round(voice_parameters.get("f5tts_speed") / speed_step, 2)
-    print(speed)
-
-        
+    
     tts_engine.infer(
         ref_file=ref_file_path,
         ref_text=ref_text,
@@ -272,14 +349,16 @@ def load_tts_engine(tts_engine_name, **kwargs):
         raise e
 
 def load_with_styletts2(**kwargs):
+    _require_styletts2()
     engine_name = "StyleTTS2" 
     tts_settings = load_tts_config()
     styletts_engine_config = find_engine_config(engine_name, tts_settings)
     
     model_root = next((param.folder_path for param in styletts_engine_config.parameters if param.attribute == "stts_model_path"))
     model_folder_name = kwargs.get("stts_model_path")
-    print(model_root)
-    print(model_folder_name)
+    if _debug_enabled():
+        print(model_root)
+        print(model_folder_name)
     folder_to_walk = os.path.join(model_root, model_folder_name)
     model_path = next(
         (os.path.join(folder_to_walk, file) for file in os.listdir(folder_to_walk) if file.endswith(".pth")),
@@ -289,6 +368,7 @@ def load_with_styletts2(**kwargs):
     return model_dict
 
 def load_with_tortoise(**kwargs):
+    _require_tortoise()
     engine_name = "Tortoise" 
     tts_settings = load_tts_config()
     tortoise_engine_config = find_engine_config(engine_name, tts_settings)
@@ -305,6 +385,21 @@ def load_with_tortoise(**kwargs):
     tokenizer_json_path = kwargs.get("tokenizer_json_path")
     if tokenizer_json_path:
         tokenizer_json_path = os.path.join(tokenizer_folder_path, tokenizer_json_path)
+
+    # Defensive: if an invalid tokenizer file is selected (e.g., a dotfile like .gitignore),
+    # fall back to Tortoise's built-in tokenizer.
+    if tokenizer_json_path:
+        basename = os.path.basename(tokenizer_json_path)
+        if basename.startswith('.') or not tokenizer_json_path.lower().endswith('.json'):
+            tokenizer_json_path = None
+        elif not os.path.exists(tokenizer_json_path):
+            tokenizer_json_path = None
+        else:
+            try:
+                if os.path.getsize(tokenizer_json_path) == 0:
+                    tokenizer_json_path = None
+            except OSError:
+                tokenizer_json_path = None
         
     diffusion_model_path = kwargs.get("diffusion_model_path", None)
     vocoder_name = kwargs.get("vocoder_name", None)
@@ -327,6 +422,7 @@ def load_with_xtts(**kwargs):
     pass
 
 def load_with_f5tts(**kwargs):
+    _require_f5tts()
     engine_name = "f5tts"
     tts_settings = load_tts_config()
     f5tts_engine_config = find_engine_config(engine_name, tts_settings)
@@ -367,6 +463,17 @@ def load_with_f5tts(**kwargs):
     return model
 
 def load_with_gpt_sovits(**kwargs):
+    global TTS, TTS_Config
+    if TTS is None or TTS_Config is None:
+        try:
+            from GPT_SoVITS.TTS_infer_pack.TTS import TTS as _TTS, TTS_Config as _TTS_Config
+            TTS, TTS_Config = _TTS, _TTS_Config
+        except Exception as e:
+            raise ImportError(
+                "GPT-SoVITS could not be imported, so the 'gpt_sovits' engine cannot be loaded. "
+                "Run the install/update script (or check 'modules/GPT-SoVITS-Package' dependencies)."
+            ) from e
+
     tts_settings = load_tts_config()
     gpt_sovits_engine_config = find_engine_config("gpt_sovits", tts_settings)
     version = kwargs.get("gpt_sovits_version")
@@ -421,9 +528,10 @@ def load_with_gpt_sovits(**kwargs):
             vocoder_path = "engines/gpt_sovits/pretrained_models/gsv-v4-pretrained/vocoder.pth"
         else:
             vocoder_path = "engines/gpt_sovits/pretrained_models/models--nvidia--bigvgan_v2_24khz_100band_256x"
-        print(f"Loading TTS weights from {t2s_ckpt_path}")
-        print(f"Loading VITS weights from {vits_ckpt_path}")
-        print(f"Loading Vocoder weights from {vocoder_path}")
+        if _debug_enabled():
+            print(f"Loading TTS weights from {t2s_ckpt_path}")
+            print(f"Loading VITS weights from {vits_ckpt_path}")
+            print(f"Loading Vocoder weights from {vocoder_path}")
         pipeline.init_t2s_weights(t2s_ckpt_path)
         pipeline.init_vits_weights(vits_ckpt_path, vocoder_path=vocoder_path, model_version=version)
     return pipeline
