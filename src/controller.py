@@ -3,7 +3,7 @@
 import os
 import sys
 import warnings
-
+import tempfile
 
 def _truthy_env(name: str):
     v = os.environ.get(name, "").strip().lower()
@@ -614,17 +614,51 @@ class AudiobookController:
     def load_text_file(self):
         if not self.check_and_reset_for_new_text_file('Load New Text File'):
             return
+        
         filepath = self.view.get_open_file_name(
-            "Select Text File", "", "Text Files (*.txt);;All Files (*)"
+            "Select Text File", "", "Text Files (*.txt);;PDF Files (*.pdf);;All Files (*)"
         )
+        
         if filepath:
             book_name = self.view.get_book_name()
             if not book_name:
                 # Use the chosen text file name as the default book name
                 book_name = os.path.splitext(os.path.basename(filepath))[0]
                 self.view.set_book_name(book_name)
+            
             self.model.filepath = filepath
-            sentences = self.model.load_sentences(filepath)
+            sentences = None
+            
+            # Check if the file is PDF
+            if filepath.lower().endswith('.pdf'):
+                try:
+                    # Extract text from PDF
+                    extracted_text = self.extract_text_from_pdf(filepath)
+                    if not extracted_text:
+                        self.view.show_message(
+                            "Error", 
+                            "Failed to extract text from PDF. The file might be empty or contain only images.",
+                            icon=QMessageBox.Warning
+                        )
+                        return
+                    
+                    # Format the extracted text (each paragraph on one line)
+                    formatted_text = self.format_text_for_audiobook(extracted_text)
+                    
+                    # Load sentences from the formatted text
+                    sentences = self.model.load_sentences_from_text(formatted_text)
+                    
+                except Exception as e:
+                    self.view.show_message(
+                        "Error", 
+                        f"Error extracting text from PDF: {str(e)}",
+                        icon=QMessageBox.Warning
+                    )
+                    return
+            else:
+                # Load regular text file
+                sentences = self.model.load_sentences(filepath)
+            
             if sentences:
                 self.model.create_audio_text_map("", sentences)
                 if not self.current_audiobook_directory:
@@ -638,6 +672,123 @@ class AudiobookController:
         else:
             pass
 
+    def extract_text_from_pdf(self, pdf_path):
+        """
+        Extract text from a PDF file.
+        
+        Args:
+            pdf_path (str): Path to the PDF file
+        
+        Returns:
+            str: Extracted text or None if failed
+        """
+        try:
+            # Try using pdfplumber first (better results)
+            import pdfplumber
+            
+            text = ""
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n\n"  # Add double newline between pages
+            
+            if text.strip():
+                return text.strip()
+            
+            # If pdfplumber fails or returns empty, try PyPDF2 as fallback
+            import PyPDF2
+            
+            text = ""
+            with open(pdf_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                
+                if pdf_reader.is_encrypted:
+                    # Try to decrypt with empty password
+                    try:
+                        pdf_reader.decrypt('')
+                    except:
+                        self.view.show_message(
+                            "Error",
+                            "PDF is encrypted. Please provide a password.",
+                            icon=QMessageBox.Warning
+                        )
+                        return None
+                
+                for page in pdf_reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n\n"  # Add double newline between pages
+            
+            return text.strip() if text.strip() else None
+            
+        except ImportError as e:
+            self.view.show_message(
+                "Missing Dependencies",
+                "PDF support requires additional libraries.\n"
+                "Please install: pip install pdfplumber PyPDF2",
+                icon=QMessageBox.Warning
+            )
+            return None
+        except Exception as e:
+            self.view.show_message(
+                "PDF Error",
+                f"Error reading PDF: {str(e)}",
+                icon=QMessageBox.Warning
+            )
+            return None
+
+    def format_text_for_audiobook(self, text):
+        """
+        Format text so each paragraph is on a single line.
+        Removes internal line breaks while preserving paragraph structure.
+        
+        Args:
+            text (str): Raw extracted text
+        
+        Returns:
+            str: Formatted text with each paragraph on one line
+        """
+        import re
+        
+        # Split into lines
+        lines = text.split('\n')
+        
+        formatted_lines = []
+        current_paragraph = []
+        
+        for line in lines:
+            stripped_line = line.strip()
+            
+            # Empty line or very short line (likely intentional break)
+            if not stripped_line or (len(stripped_line) < 3 and stripped_line in ['', '-', '—', '…']):
+                if current_paragraph:
+                    # Join the current paragraph with spaces
+                    formatted_lines.append(' '.join(current_paragraph))
+                    current_paragraph = []
+                if not stripped_line:
+                    formatted_lines.append('')  # Preserve paragraph separation
+                continue
+            
+            # Check if this line is a page number or header (skip it)
+            if stripped_line.isdigit() or (len(stripped_line) < 10 and stripped_line.upper() == stripped_line):
+                continue  # Skip page numbers and short headers
+            
+            # Add to current paragraph
+            current_paragraph.append(stripped_line)
+        
+        # Don't forget the last paragraph
+        if current_paragraph:
+            formatted_lines.append(' '.join(current_paragraph))
+        
+        # Join with newlines
+        result = '\n'.join(formatted_lines)
+        
+        # Clean up extra spaces and fix common issues
+        result = re.sub(r' +', ' ', result)  # Replace multiple spaces with single space
+        result = re.sub(r'\n{3,}', '\n\n', result)  # Replace 3+ newlines with 2
+        
+        return result.strip()
     def on_audio_finished(self):
         if self.playing_sequence:
             self.play_next_audio_in_sequence()

@@ -6,13 +6,21 @@ pyyaml
 pyside6
 pyttsx3
 psutil
-deepspeed==0.15.0
 numpy==1.26.4
 tensorboardX==2.6.2.2
 split-lang
 fast_langdetect>=0.3.1
 peft
-hatchling
-hatch-vcs
 transformers==4.36.2
 x_transformers==1.42.6
+
+# PDF Support
+pdfplumber
+PyPDF2
+
+# Optional: For DeepSpeed (Linux only, comment out on Windows)
+# deepspeed==0.15.0
+
+# Build tools (if needed for development)
+# hatchling
+# hatch-vcs

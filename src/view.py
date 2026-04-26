@@ -1329,7 +1329,12 @@ class AudiobookMakerView(QMainWindow):
         # Expand any environment variables and user variables
         folder_path = os.path.expandvars(os.path.expanduser(folder_path))
 
-        # Convert to absolute path
+        # Convert to absolute path.
+        # Important: resolve relative paths against the project root (not the current working directory),
+        # otherwise launching the app from a different folder can make dropdowns show only "Default".
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if not os.path.isabs(folder_path):
+            folder_path = os.path.join(project_root, folder_path)
         folder_path = os.path.abspath(folder_path)
 
         items = []
@@ -1584,7 +1589,8 @@ class AudiobookMakerView(QMainWindow):
         self.tts_engine_combo.blockSignals(False)  # Unblock signals
 
         # Update TTS options
-        self.update_tts_options(tts_engine)
+        selected_tts_engine = self.tts_engine_combo.currentText()
+        self.update_tts_options(selected_tts_engine)
         # Set TTS parameters
         self.set_tts_parameters(settings)
 

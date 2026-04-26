@@ -197,7 +197,19 @@ class AudiobookModel:
         # Run ffmpeg concat using the discovered ffmpeg path
         ffmpeg_bin = AudioSegment.silent(0).ffmpeg
         file_list_abs = os.path.abspath(file_list_path)
-        self.execute_subprocess([ffmpeg_bin, '-f', 'concat', '-safe', '0', '-i', file_list_abs, new_audiobook_path])
+        # Explicitly set MP3 encoding quality. Without this, ffmpeg may choose low-quality defaults.
+        # Use CBR 192k as a strong spoken-word default.
+        self.execute_subprocess([
+            ffmpeg_bin,
+            '-hide_banner',
+            '-y',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', file_list_abs,
+            '-c:a', 'libmp3lame',
+            '-b:a', '192k',
+            new_audiobook_path,
+        ])
 
         # Cleanup temporary silence file if created
         if silence_path and os.path.exists(silence_path):
@@ -675,3 +687,43 @@ class AudiobookModel:
                 audio_path = ""
                 new_text_audio_map[str(idx)] = self.default_text_audio_map_format(sentence=sentence, audio_path=audio_path, generated=generated)              
         self.text_audio_map = new_text_audio_map
+    def load_sentences_from_text(self, text):
+        """
+        Load sentences directly from a text string instead of a file.
+        
+        Args:
+            text (str): Formatted text content
+        
+        Returns:
+            list: List of sentences
+        """
+        # Use the same sentence segmentation logic as load_sentences
+        # but work with a string instead of a file
+        
+        # Split into paragraphs first (double newlines)
+        paragraphs = text.split('\n\n')
+        
+        all_sentences = []
+        for paragraph in paragraphs:
+            if paragraph.strip():
+                # Split paragraph into sentences (customize based on your needs)
+                sentences = self.segment_sentences(paragraph)
+                all_sentences.extend(sentences)
+        
+        return all_sentences
+
+    def segment_sentences(self, text):
+        """
+        Split text into sentences based on punctuation.
+        Override this based on your existing sentence segmentation logic.
+        """
+        import re
+        
+        # Simple sentence splitting (customize as needed)
+        sentence_endings = r'(?<=[.!?])\s+(?=[A-Z])'
+        sentences = re.split(sentence_endings, text)
+        
+        # Clean up
+        sentences = [s.strip() for s in sentences if s.strip()]
+        
+        return sentences
