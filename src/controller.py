@@ -632,31 +632,42 @@ class AudiobookController:
             # Check if the file is PDF
             if filepath.lower().endswith('.pdf'):
                 try:
-                    # Extract text from PDF
                     extracted_text = self.extract_text_from_pdf(filepath)
                     if not extracted_text:
-                        self.view.show_message(
-                            "Error", 
-                            "Failed to extract text from PDF. The file might be empty or contain only images.",
-                            icon=QMessageBox.Warning
-                        )
+                        self.view.show_message("Error", "Failed to extract text from PDF.")
                         return
                     
-                    # Format the extracted text (each paragraph on one line)
+                    # Format the extracted text
                     formatted_text = self.format_text_for_audiobook(extracted_text)
                     
-                    # Load sentences from the formatted text
-                    sentences = self.model.load_sentences_from_text(formatted_text)
+                    # Create temp file (no need to modify model)
+                    import tempfile
+                    temp_file = tempfile.NamedTemporaryFile(
+                        mode='w', 
+                        suffix='.txt', 
+                        delete=False, 
+                        encoding='utf-8'
+                    )
+                    temp_file.write(formatted_text)
+                    temp_file.close()
+                    
+                    # Use existing load_sentences method
+                    sentences = self.model.load_sentences(temp_file.name)
+                    
+                    # Store path for cleanup (optional)
+                    self.temp_pdf_file = temp_file.name
                     
                 except Exception as e:
-                    self.view.show_message(
-                        "Error", 
-                        f"Error extracting text from PDF: {str(e)}",
-                        icon=QMessageBox.Warning
-                    )
+                    self.view.show_message("Error", f"Error: {str(e)}")
                     return
+                finally:
+                    # Clean up temp file immediately after use
+                    if temp_file and os.path.exists(temp_file.name):
+                        try:
+                            os.unlink(temp_file.name)
+                        except:
+                            pass
             else:
-                # Load regular text file
                 sentences = self.model.load_sentences(filepath)
             
             if sentences:
@@ -740,55 +751,72 @@ class AudiobookController:
 
     def format_text_for_audiobook(self, text):
         """
-        Format text so each paragraph is on a single line.
-        Removes internal line breaks while preserving paragraph structure.
-        
-        Args:
-            text (str): Raw extracted text
-        
-        Returns:
-            str: Formatted text with each paragraph on one line
+        Advanced formatting using multiple rules to determine line breaks
         """
         import re
         
-        # Split into lines
         lines = text.split('\n')
+        result = []
+        buffer = []
         
-        formatted_lines = []
-        current_paragraph = []
-        
-        for line in lines:
-            stripped_line = line.strip()
+        for i, line in enumerate(lines):
+            stripped = line.strip()
             
-            # Empty line or very short line (likely intentional break)
-            if not stripped_line or (len(stripped_line) < 3 and stripped_line in ['', '-', '—', '…']):
-                if current_paragraph:
-                    # Join the current paragraph with spaces
-                    formatted_lines.append(' '.join(current_paragraph))
-                    current_paragraph = []
-                if not stripped_line:
-                    formatted_lines.append('')  # Preserve paragraph separation
+            # Skip empty lines
+            if not stripped:
+                if buffer:
+                    result.append(' '.join(buffer))
+                    buffer = []
+                result.append('')
                 continue
             
-            # Check if this line is a page number or header (skip it)
-            if stripped_line.isdigit() or (len(stripped_line) < 10 and stripped_line.upper() == stripped_line):
-                continue  # Skip page numbers and short headers
+            # Skip page numbers (standalone digits)
+            if stripped.isdigit() or (len(stripped) < 4 and stripped.isdigit()):
+                continue
             
-            # Add to current paragraph
-            current_paragraph.append(stripped_line)
+            # Rules for determining if this line should continue the previous
+            should_continue = False
+            
+            if buffer:
+                last = buffer[-1]
+                
+                # Continue if:
+                # 1. Last line doesn't end with sentence punctuation
+                if not last.endswith(('.', '!', '?', '"', "'", '”', '’')):
+                    should_continue = True
+                # 2. Current line starts with lowercase
+                elif stripped and stripped[0].islower():
+                    should_continue = True
+                # 3. Current line is dialogue continuation
+                elif stripped.startswith(('"', "'", '“', '”')) and len(stripped) > 1:
+                    should_continue = True
+                # 4. Last line ends with comma or semicolon
+                elif last.endswith((',', ';', ':')):
+                    should_continue = True
+                # 5. Current line is very short (less than 15 chars) - could be dialogue
+                elif len(stripped) < 15:
+                    should_continue = True
+            
+            if should_continue and buffer:
+                buffer.append(stripped)
+            else:
+                if buffer:
+                    result.append(' '.join(buffer))
+                buffer = [stripped]
         
-        # Don't forget the last paragraph
-        if current_paragraph:
-            formatted_lines.append(' '.join(current_paragraph))
+        # Add last buffer
+        if buffer:
+            result.append(' '.join(buffer))
         
-        # Join with newlines
-        result = '\n'.join(formatted_lines)
+        # Clean up
+        final = '\n\n'.join(result)
         
-        # Clean up extra spaces and fix common issues
-        result = re.sub(r' +', ' ', result)  # Replace multiple spaces with single space
-        result = re.sub(r'\n{3,}', '\n\n', result)  # Replace 3+ newlines with 2
+        # Fix spacing around punctuation
+        final = re.sub(r'\s+([.,!?;:])', r'\1', final)
+        # Fix multiple spaces
+        final = re.sub(r' +', ' ', final)
         
-        return result.strip()
+        return final.strip()
     def on_audio_finished(self):
         if self.playing_sequence:
             self.play_next_audio_in_sequence()
