@@ -100,16 +100,24 @@ class AudiobookModel:
             "regen" : False
         }
         return text_audio_map
-    def execute_subprocess(self, cmd):
+    def execute_subprocess(self, cmd, progress_callback=None, total_duration_seconds=None):
         # Combine stderr into stdout so ffmpeg logs (progress, warnings) are visible
         # Keep streaming logs; allow external cancellation via self.cancel_process
-        self.cancel_process = False
+        if self.cancel_process:
+            raise CalledProcessError(-1, cmd)
         with Popen(cmd, stdout=PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True) as p:
             self.current_process = p
             try:
                 for line in p.stdout:
                     # Keep logs visible
                     print(line, end='')
+                    if progress_callback and total_duration_seconds and line.startswith(('out_time_us=', 'out_time_ms=')):
+                        try:
+                            _, raw_time = line.strip().split('=', 1)
+                            # FFmpeg's progress values are reported in microseconds.
+                            progress_callback(min(99, int((int(raw_time) / 1_000_000) / total_duration_seconds * 100)))
+                        except (TypeError, ValueError, ZeroDivisionError):
+                            pass
                     if self.cancel_process:
                         try:
                             p.terminate()
@@ -130,7 +138,8 @@ class AudiobookModel:
                 self.current_process.terminate()
             except Exception:
                 pass
-    def export_audiobook(self, directory_path, pause_duration):
+    def export_audiobook(self, directory_path, pause_duration, progress_callback=None):
+        self.cancel_process = False
         # Prepare export directory and validate audiobook map
         dir_name = os.path.basename(directory_path)
         idx = 0
@@ -155,6 +164,19 @@ class AudiobookModel:
 
         if not sorted_audio_paths:
             raise ValueError("No generated audio found to export.")
+
+        # FFmpeg reports encoded time; calculate the expected timeline so the UI
+        # can display a genuine percentage and remaining work.
+        total_duration_seconds = sum(
+            AudioSegment.from_file(audio_path).duration_seconds
+            for audio_path in sorted_audio_paths
+        )
+        if pause_duration and pause_duration > 0:
+            total_duration_seconds += pause_duration * (len(sorted_audio_paths) - 1)
+        if progress_callback:
+            progress_callback(0)
+        if self.cancel_process:
+            raise CalledProcessError(-1, ['ffmpeg'])
 
         # Build optional silence segment using properties from first audio via pydub
         silence_concat_command = ""
@@ -208,10 +230,12 @@ class AudiobookModel:
             '-f', 'concat',
             '-safe', '0',
             '-i', file_list_abs,
+            '-progress', 'pipe:1',
+            '-nostats',
             '-c:a', 'libmp3lame',
             '-b:a', '192k',
             new_audiobook_path,
-        ])
+        ], progress_callback, total_duration_seconds)
 
         # Cleanup temporary silence file if created
         if silence_path and os.path.exists(silence_path):
@@ -221,6 +245,8 @@ class AudiobookModel:
                 pass
 
         print(f"Combined audiobook saved in {new_audiobook_name}")
+        if progress_callback:
+            progress_callback(100)
         return new_audiobook_name
     def filter_paragraph(self, paragraph):
         sentences = []

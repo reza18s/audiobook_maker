@@ -148,6 +148,8 @@ class AudioGenerationWorker(QThread):
 class ExportWorker(QThread):
     finished_signal = Signal(str)  # output filename
     error_signal = Signal(str)
+    progress_signal = Signal(int)
+    cancelled_signal = Signal()
 
     def __init__(self, model, directory_path, pause_duration):
         super().__init__()
@@ -157,16 +159,15 @@ class ExportWorker(QThread):
 
     def run(self):
         try:
-            output_filename = self.model.export_audiobook(self.directory_path, self.pause_duration)
+            output_filename = self.model.export_audiobook(
+                self.directory_path, self.pause_duration, self.progress_signal.emit
+            )
             self.finished_signal.emit(output_filename)
         except Exception as e:
-            # Treat cancel distinctly
-            msg = str(e)
-            if isinstance(e, Exception) and 'returned non-zero' in msg:
-                # ffmpeg or cancel
-                self.error_signal.emit(msg)
+            if self.model.cancel_process:
+                self.cancelled_signal.emit()
             else:
-                self.error_signal.emit(msg)
+                self.error_signal.emit(str(e))
         
 class RegenerateAudioWorker(QThread):
     finished_signal = Signal(str, int)  # Signal to indicate completion
@@ -492,19 +493,20 @@ class AudiobookController:
         pause_duration = self.view.get_pause_between_sentences()
         # Start export in a worker to keep UI responsive and allow cancel
         self.export_worker = ExportWorker(self.model, directory_path, pause_duration)
-        # Show busy progress on dedicated export bar and enable cancel button
+        # Use determinate export progress from FFmpeg rather than a spinner.
         try:
-            # Keep generation bar unaffected; only export bar shows busy state
             if hasattr(self.view, 'set_export_busy'):
-                self.view.set_export_busy(True)
-            elif hasattr(self.view, 'export_progress_bar'):
-                self.view.export_progress_bar.setRange(0, 0)
+                self.view.set_export_busy(False)
+            if hasattr(self.view, 'set_export_progress'):
+                self.view.set_export_progress(0)
         except Exception:
             pass
         if hasattr(self.view, 'on_enable_cancel_export'):
             self.view.on_enable_cancel_export()
         self.export_worker.finished_signal.connect(self.on_export_finished)
         self.export_worker.error_signal.connect(self.on_export_error)
+        self.export_worker.progress_signal.connect(self.view.set_export_progress)
+        self.export_worker.cancelled_signal.connect(self.on_export_cancelled)
         self.export_worker.start()
     def on_export_finished(self, output_filename):
         # Reset progress UI
@@ -542,19 +544,21 @@ class AudiobookController:
     def stop_export(self):
         # Request cancel from model
         self.model.cancel_current_process()
-        # UI feedback
+        # The worker owns final cleanup; keep the current percentage visible
+        # while FFmpeg terminates.
         if hasattr(self.view, 'on_disable_cancel_export'):
             self.view.on_disable_cancel_export()
-        try:
-            if hasattr(self.view, 'set_export_busy'):
-                self.view.set_export_busy(False)
-            if hasattr(self.view, 'set_export_progress'):
-                self.view.set_export_progress(0)
-            elif hasattr(self.view, 'export_progress_bar'):
-                self.view.export_progress_bar.setRange(0, 100)
-                self.view.export_progress_bar.setValue(0)
-        except Exception:
-            pass
+        if hasattr(self.view, 'export_progress_info_label'):
+            self.view.export_progress_info_label.setText("Export: cancelling…")
+    def on_export_cancelled(self):
+        if hasattr(self.view, 'set_export_busy'):
+            self.view.set_export_busy(False)
+        if hasattr(self.view, 'on_disable_cancel_export'):
+            self.view.on_disable_cancel_export()
+        if hasattr(self.view, 'export_progress_info_label'):
+            self.view.export_progress_info_label.setText(
+                f"Export: cancelled at {self.view.export_progress_bar.value()}%"
+            )
     def extract_text(self, idx: int, concat_sentences:bool, length_search_text: int) -> str:
         text = self.model.text_audio_map[str(idx)]['sentence']
         if concat_sentences:

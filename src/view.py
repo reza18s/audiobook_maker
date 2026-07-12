@@ -1888,11 +1888,11 @@ class AudiobookMakerView(QMainWindow):
         self.export_progress_bar.setValue(v_int)
         if hasattr(self, 'export_progress_info_label') and self.export_progress_info_label is not None:
             if v_int == 0:
-                self.export_progress_info_label.setText("Export: idle")
+                self.export_progress_info_label.setText("Export: 0% | Left: 100%")
             elif v_int >= 100:
                 self.export_progress_info_label.setText("Export: done")
             else:
-                self.export_progress_info_label.setText(f"Export: {v_int}%")
+                self.export_progress_info_label.setText(f"Export: {v_int}% | Left: {100 - v_int}%")
 
     def set_export_busy(self, busy):
         try:
