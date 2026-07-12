@@ -646,6 +646,7 @@ class AudiobookMakerView(QMainWindow):
     # current_speaker_changed = Signal(int)
     delete_requested = Signal()
     export_audiobook_requested = Signal()
+    generation_concurrency_changed = Signal(int)
     font_size_changed = Signal(int)
     generation_settings_changed = Signal()
     load_existing_audiobook_requested = Signal()
@@ -685,6 +686,7 @@ class AudiobookMakerView(QMainWindow):
 
         # Load user settings
         self.loaded_font_size = 14
+        self.max_parallel_generations = self.global_settings.get('max_parallel_generations', 2)
         
         background_image = self.global_settings.get('background_image')
         if background_image and os.path.exists(background_image):
@@ -919,6 +921,15 @@ class AudiobookMakerView(QMainWindow):
         self.font_slider.setTickPosition(QSlider.TicksBelow)
         self.font_slider.setTickInterval(1)
         self.font_slider.valueChanged.connect(self.on_font_slider_changed)
+        self.generation_concurrency_slider = QSlider(Qt.Horizontal)
+        self.generation_concurrency_slider.setRange(1, 4)
+        self.generation_concurrency_slider.setValue(self.max_parallel_generations)
+        self.generation_concurrency_slider.setTickPosition(QSlider.TicksBelow)
+        self.generation_concurrency_slider.setTickInterval(1)
+        self.generation_concurrency_label = QLabel(
+            f"Parallel sentences: {self.generation_concurrency_slider.value()}"
+        )
+        self.generation_concurrency_slider.valueChanged.connect(self.on_generation_concurrency_changed)
         
         # QSpinBoxes
         self.go_to_sentence_input = QSpinBox()
@@ -1031,6 +1042,8 @@ class AudiobookMakerView(QMainWindow):
         left_layout.addLayout(self.book_layout)
         left_layout.addWidget(self.load_text)
         left_layout.addLayout(self.generation_buttons_layout)
+        left_layout.addWidget(self.generation_concurrency_label)
+        left_layout.addWidget(self.generation_concurrency_slider)
         left_layout.addLayout(self.play_pause_layout)
         left_layout.addWidget(self.play_all_button)
         left_layout.addWidget(self.regenerate_button)
@@ -1692,6 +1705,9 @@ class AudiobookMakerView(QMainWindow):
         # self.pause_between_sentences_changed.emit(pause_duration)
     def on_font_slider_changed(self, value):
         self.font_size_changed.emit(value)
+    def on_generation_concurrency_changed(self, value):
+        self.generation_concurrency_label.setText(f"Parallel sentences: {value}")
+        self.generation_concurrency_changed.emit(value)
     def on_generate_button_clicked(self):
         self.start_generation_requested.emit()
     def on_go_to_sentence(self):

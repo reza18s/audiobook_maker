@@ -9,6 +9,8 @@ import re
 import subprocess
 import tempfile
 import yaml
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import tts_engines
 import s2s_engines
@@ -246,6 +248,12 @@ class AudiobookModel:
     #         i += 1
     #     return filtered_list
     def generate_audio_for_sentence_threaded(self, directory_path, is_continue, is_regen_only, report_progress_callback, sentence_generated_callback, should_stop_callback=None):
+        """Generate sentences with isolated model instances and serialized map writes.
+
+        TTS engines retain mutable state, so they must never be shared between
+        concurrent jobs.  The coordinator owns ``text_audio_map`` and persists it
+        only after a job completes, avoiding competing JSON writes.
+        """
         self.load_generation_settings(directory_path)
         self.load_text_audio_map(directory_path)
         if is_regen_only:
@@ -260,48 +268,63 @@ class AudiobookModel:
                 return
         else:
             generated_count = 0
-        sentences_by_speaker = defaultdict(list)
+        jobs = []
         for idx, entry in self.text_audio_map.items():
-            speaker_id = entry.get('speaker_id', 1)
-            sentences_by_speaker[speaker_id].append((idx, entry))
-        for speaker_id, entries in sentences_by_speaker.items():
-            speaker = self.speakers.get(speaker_id, {})
-            speaker_settings = speaker.get('settings', {})
+            if (is_continue and entry['generated']) or (is_regen_only and not entry['regen']):
+                continue
+            speaker = self.speakers.get(entry.get('speaker_id', 1), {})
+            jobs.append((idx, entry['sentence'], entry.get('speaker_id', 1), speaker.get('settings', {}).copy()))
+
+        concurrency = max(1, min(int(self.global_settings.get('max_parallel_generations', 2)), 4))
+        worker_local = threading.local()
+
+        def generate_job(idx, sentence, speaker_id, speaker_settings):
+            if not hasattr(worker_local, 'model'):
+                worker_local.model = AudiobookModel(self.global_settings)
+            worker_model = worker_local.model
             tts_engine_name = speaker_settings.get('tts_engine', 'pyttsx3')
-            self.load_selected_tts_engine(tts_engine_name, speaker_id, **speaker_settings)
-            use_s2s = speaker_settings.get('use_s2s', False)
-            if use_s2s:
-                s2s_engine_name = speaker_settings.get('s2s_engine', None)
-                if s2s_engine_name:
-                    s2s_parameters = speaker_settings.copy()
-                    s2s_validated = self.load_selected_s2s_engine(s2s_engine_name, speaker_id, **s2s_parameters)
-                else:
-                    s2s_validated = False
-            else:
-                s2s_validated = False
-            for idx, entry in entries:
-                if should_stop_callback():
-                    print("Generation stopped by user")
-                    return
-                if is_continue and entry['generated']:
-                    continue
-                if is_regen_only:
-                    if entry['regen']:
-                        pass
-                    else:
-                        continue
-                sentence = entry['sentence']
-                audio_path = self.generate_audio_proxy(sentence, speaker_settings, s2s_validated)
-                if audio_path:
-                    new_audio_path = os.path.join(directory_path, f"audio_{idx}.wav")
-                    shutil.move(audio_path, new_audio_path)
-                    self.text_audio_map[idx]['audio_path'] = new_audio_path
-                    self.text_audio_map[idx]['generated'] = True
-                    generated_count += 1
-                    self.save_text_audio_map(directory_path)
-                    sentence_generated_callback(int(idx), sentence)
-                progress_percentage = int((generated_count / total_sentences) * 100)
-                report_progress_callback(progress_percentage)
+            worker_model.load_selected_tts_engine(tts_engine_name, speaker_id, **speaker_settings)
+            s2s_validated = False
+            if speaker_settings.get('use_s2s') and speaker_settings.get('s2s_engine'):
+                s2s_validated = worker_model.load_selected_s2s_engine(
+                    speaker_settings['s2s_engine'], speaker_id, **speaker_settings
+                )
+            return idx, sentence, worker_model.generate_audio_proxy(sentence, speaker_settings, s2s_validated)
+
+        pending = iter(jobs)
+        active_jobs = set()
+        stop_requested = should_stop_callback or (lambda: False)
+        with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix='audio-generation') as executor:
+            while len(active_jobs) < concurrency and not stop_requested():
+                try:
+                    active_jobs.add(executor.submit(generate_job, *next(pending)))
+                except StopIteration:
+                    break
+            while active_jobs:
+                completed, active_jobs = wait(active_jobs, return_when=FIRST_COMPLETED)
+                for future in completed:
+                    try:
+                        idx, sentence, audio_path = future.result()
+                        if audio_path:
+                            new_audio_path = os.path.join(directory_path, f"audio_{idx}.wav")
+                            shutil.move(audio_path, new_audio_path)
+                            self.text_audio_map[idx]['audio_path'] = new_audio_path
+                            self.text_audio_map[idx]['generated'] = True
+                            generated_count += 1
+                            self.save_text_audio_map(directory_path)
+                            sentence_generated_callback(int(idx), sentence)
+                        else:
+                            print(f"Failed to generate sentence {idx}.")
+                    except Exception as error:
+                        print(f"Failed to generate a sentence: {error}")
+                    report_progress_callback(int((generated_count / total_sentences) * 100))
+                    if not stop_requested():
+                        try:
+                            active_jobs.add(executor.submit(generate_job, *next(pending)))
+                        except StopIteration:
+                            pass
+        if stop_requested():
+            print("Generation stopped; active jobs were completed.")
     def generate_audio_proxy(self, sentence, voice_parameters, s2s_validated):
         tts_engine_name = voice_parameters.get('tts_engine', 'pyttsx3')
         s2s_engine_name = voice_parameters.get('s2s_engine', None)

@@ -335,6 +335,7 @@ class AudiobookController:
         self.view.delete_requested.connect(self.deletion_prompt)
         self.view.export_audiobook_requested.connect(self.export_audiobook)
         self.view.font_size_changed.connect(self.on_font_size_changed)
+        self.view.generation_concurrency_changed.connect(self.on_generation_concurrency_changed)
         self.view.generation_settings_changed.connect(self.save_generation_settings)
         self.view.load_existing_audiobook_requested.connect(self.load_existing_audiobook)
         self.view.load_text_file_requested.connect(self.load_text_file)
@@ -830,6 +831,9 @@ class AudiobookController:
         self.view.stop_generation_button.setEnabled(False)
         self.view.enable_buttons()
         self.update_table_with_sentences()
+    def on_generation_concurrency_changed(self, value):
+        self.global_settings['max_parallel_generations'] = value
+        self.model.save_settings({'max_parallel_generations': value})
     def on_generation_started(self):
         self.is_generating = True
         self.view.on_enable_stop_button()
@@ -1182,9 +1186,6 @@ class AudiobookController:
     def stop_generation(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.stop()
-        self.is_generating = False
-        self.view.enable_buttons()
-        self.view.on_disable_stop_button()
 
     def update_audiobook(self):
         if not self.check_and_reset_for_new_text_file('Update Audiobook'):
