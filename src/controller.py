@@ -73,12 +73,6 @@ def _enable_hf_offline_mode():
 if _should_enable_offline_mode():
     _enable_hf_offline_mode()
 
-# Avoid noisy/failed native extension builds on Windows when optional packages are present.
-# These are safe no-ops if the corresponding packages aren't used.
-os.environ.setdefault("DS_BUILD_OPS", "0")
-os.environ.setdefault("DS_BUILD_AIO", "0")
-os.environ.setdefault("DEEPSPEED_LOG_LEVEL", "ERROR")
-
 # Suppress known non-actionable upstream warnings.
 warnings.filterwarnings(
     "ignore",
@@ -100,18 +94,6 @@ if os.path.exists("runtime"):
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
         
-try:
-    import styletts2
-    espeak_path = os.path.join(os.path.dirname(__file__), '..', 'espeak NG')
-    espeak_library = os.path.join(os.path.dirname(__file__), '..', 'espeak NG', 'libespeak-ng.dll')
-    espeak_data_path = os.path.join(espeak_path, 'espeak-ng-data')
-    os.environ['PHONEMIZER_ESPEAK_PATH'] = espeak_path
-    os.environ['PHONEMIZER_ESPEAK_LIBRARY'] = espeak_library
-    os.environ['ESPEAK_DATA_PATH'] = espeak_data_path    
-except:
-    # Styletts2 not installed, so espeak not added to path
-    pass
-
 from model import AudiobookModel
 from view import AudiobookMakerView
 

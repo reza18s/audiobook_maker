@@ -4,7 +4,6 @@ import os
 import json
 import shutil
 from pydub import AudioSegment
-import pyttsx3
 import re
 import subprocess
 import tempfile
@@ -297,7 +296,7 @@ class AudiobookModel:
             speaker = self.speakers.get(entry.get('speaker_id', 1), {})
             speaker_id = entry.get('speaker_id', 1)
             speaker_settings = speaker.get('settings', {})
-            tts_engine_name = speaker_settings.get('tts_engine', 'pyttsx3')
+            tts_engine_name = speaker_settings.get('tts_engine', 'f5tts')
             self.load_selected_tts_engine(tts_engine_name, speaker_id, **speaker_settings)
             s2s_validated = False
             if speaker_settings.get('use_s2s') and speaker_settings.get('s2s_engine'):
@@ -320,7 +319,7 @@ class AudiobookModel:
                 print(f"Failed to generate sentence {idx}: {error}")
             report_progress_callback(int((generated_count / total_sentences) * 100))
     def generate_audio_proxy(self, sentence, voice_parameters, s2s_validated):
-        tts_engine_name = voice_parameters.get('tts_engine', 'pyttsx3')
+        tts_engine_name = voice_parameters.get('tts_engine', 'f5tts')
         s2s_engine_name = voice_parameters.get('s2s_engine', None)
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
             audio_path = tmp_file.name
@@ -376,6 +375,7 @@ class AudiobookModel:
                 color = speaker.get('color', '#FFFFFF')
                 if isinstance(color, str):
                     speaker['color'] = QColor(color)
+                speaker.setdefault('settings', {})['tts_engine'] = 'F5TTS'
             return settings
         else:
             return {}
@@ -446,7 +446,7 @@ class AudiobookModel:
         paragraph = paragraph.replace('Mrs.','Misses')
         paragraph = paragraph.replace('Ms.','Miz')
         paragraph = paragraph.replace('Dr.','Doctor')
-        #add space before period, to improve end of sentence audio for tortoise for example.
+        # Add space before a period to improve sentence-ending audio.
         #removed space after period
         #paragraph = paragraph.replace(r'. ', ' .*%')
         paragraph = paragraph.replace(r'.', ' .*%')

@@ -1,18 +1,6 @@
-[submodule "modules/tortoise_tts_api"]
-	path = modules/tortoise_tts_api
-	url = https://github.com/JarodMica/tortoise_tts_api
-[submodule "modules/styletts-api"]
-	path = modules/styletts-api
-	url = https://github.com/JarodMica/styletts-api.git
 [submodule "modules/F5-TTS"]
 	path = modules/F5-TTS
 	url = https://github.com/JarodMica/F5-TTS.git
-[submodule "modules/modules/GPT-SoVITS-Package"]
-	path = modules/modules/GPT-SoVITS-Package
-	url = https://github.com/JarodMica/GPT-SoVITS-Package.git
-[submodule "modules/GPT-SoVITS-Package"]
-	path = modules/GPT-SoVITS-Package
-	url = https://github.com/JarodMica/GPT-SoVITS-Package.git
 [submodule "modules/rvc-python"]
 	path = modules/rvc-python
 	url = https://github.com/JarodMica/rvc-python.git

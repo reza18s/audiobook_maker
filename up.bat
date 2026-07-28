@@ -44,67 +44,15 @@ if "%current_head%"=="" (
 
 xcopy %REPO_NAME%\update_package.bat update_package.bat /Y
 xcopy %REPO_NAME%\requirements.txt requirements.txt /Y
-xcopy %REPO_NAME%\finish_styletts_install.bat finish_styletts_install.bat /Y
 xcopy %REPO_NAME%\.git .git /E /I /H /Y
-xcopy %REPO_NAME%\install_gpt_sovits_nltk.py install_gpt_sovits_nltk.py /E /I /H /Y
 
 xcopy %REPO_NAME%\src src /E /I /H /Y
 xcopy %REPO_NAME%\configs configs /E /I /H /Y
-xcopy %REPO_NAME%\modules\tortoise_tts_api modules\tortoise_tts_api /E /I /H /Y
-xcopy %REPO_NAME%\modules\styletts-api modules\styletts-api /E /I /H /Y
 xcopy %REPO_NAME%\modules\F5-TTS modules\F5-TTS /E /I /H /Y
-xcopy %REPO_NAME%\modules\GPT-SoVITS-Package modules\GPT-SoVITS-Package /E /I /H /Y
-xcopy %REPO_NAME%\engines\gpt_sovits engines\gpt_sovits /E /I /H /Y
-
-REM Start of TortoiseTTS install
-cd modules\tortoise_tts_api
-git submodule init
-git submodule update --remote
-cd ..\..
-
-runtime\python.exe -m pip uninstall -y tortoise_tts_api
-runtime\python.exe -m pip uninstall -y dlas
-runtime\python.exe -m pip uninstall -y tortoise
-runtime\python.exe -m pip install modules\tortoise_tts_api\modules\tortoise_tts
-runtime\python.exe -m pip install modules\tortoise_tts_api\modules\dlas
-runtime\python.exe -m pip install modules\tortoise_tts_api
-
-REM Start of StyleTTS install
-set download_monotonic_align=https://huggingface.co/Jmica/audiobook_models/resolve/main/monotonic_align-1.2-cp311-cp311-win_amd64.whl?download=true
-set file_name_ma=monotonic_align-1.2-cp311-cp311-win_amd64.wh
-if not exist "%file_name_ma%" (
-    echo Downloading %file_name_ma%...
-    curl -L -O "%download_monotonic_align%"
-    if errorlevel 1 (
-        echo Download failed. Please check your internet connection or the URL and try again.
-        exit /b 1
-    )
-) else (
-    echo File %file_name_ma% already exists, skipping download.
-)
-
-runtime\python.exe -m pip install monotonic_align-1.2-cp311-cp311-win_amd64.whl
-
-cd modules\styletts-api
-git submodule init
-git submodule update --remote
-cd ..\..
-runtime\python.exe -m pip uninstall -y styletts2
-runtime\python.exe -m pip uninstall -y styletts-api
-runtime\python.exe -m pip install modules\styletts-api\modules\StyleTTS2
-runtime\python.exe -m pip install modules\styletts-api
 
 REM Start of F5TTS install
 runtime\python.exe -m pip uninstall -y f5_tts
 runtime\python.exe -m pip install modules\F5-TTS
-
-REM Start of GPT-SoVITS install
-runtime\python.exe -m pip install hatchling
-runtime\python.exe -m pip install hatch-vcs
-runtime\python.exe -m pip uninstall -y gpt_sovits
-runtime\python.exe -m pip install modules\GPT-SoVITS-Package
-runtime\python.exe -m pip install nltk
-runtime\python.exe install_gpt_sovits_nltk.py
 
 
 REM Start of RVC install
@@ -128,20 +76,12 @@ if "%CURRENT_VERSION%" == "%TARGET_VERSION%" (
 
 runtime\python.exe -m pip install -r requirements.txt
 
-mkdir voices\styletts
 mkdir voices\f5tts
-mkdir voices\gpt_sovits
-mkdir voices\tortoise
 
-mkdir engines\styletts
 mkdir engines\f5tts\duration
 mkdir engines\f5tts\models
 mkdir engines\f5tts\tokenizers
 mkdir engines\f5tts\vocoders
-mkdir engines\gpt_sovits
-mkdir engines\gpt_sovits\gpt_models
-mkdir engines\gpt_sovits\pretrained_models
-mkdir engines\gpt_sovits\sovits_models
 
 @echo ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @echo ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
