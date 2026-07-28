@@ -336,7 +336,6 @@ class AudiobookController:
         self.view.delete_requested.connect(self.deletion_prompt)
         self.view.export_audiobook_requested.connect(self.export_audiobook)
         self.view.font_size_changed.connect(self.on_font_size_changed)
-        self.view.generation_concurrency_changed.connect(self.on_generation_concurrency_changed)
         self.view.generation_settings_changed.connect(self.save_generation_settings)
         self.view.load_existing_audiobook_requested.connect(self.load_existing_audiobook)
         self.view.load_text_file_requested.connect(self.load_text_file)
@@ -637,41 +636,19 @@ class AudiobookController:
             # Check if the file is PDF
             if filepath.lower().endswith('.pdf'):
                 try:
-                    extracted_text = self.extract_text_from_pdf(filepath)
-                    if not extracted_text:
+                    sentences = []
+
+                    def append_page_sentences(page_text):
+                        formatted_page = self.format_text_for_audiobook(page_text)
+                        sentences.extend(self.model.load_sentences_from_text(formatted_page))
+
+                    if not self.extract_text_from_pdf(filepath, append_page_sentences):
                         self.view.show_message("Error", "Failed to extract text from PDF.")
                         return
-                    
-                    # Format the extracted text
-                    formatted_text = self.format_text_for_audiobook(extracted_text)
-                    
-                    # Create temp file (no need to modify model)
-                    import tempfile
-                    temp_file = tempfile.NamedTemporaryFile(
-                        mode='w', 
-                        suffix='.txt', 
-                        delete=False, 
-                        encoding='utf-8'
-                    )
-                    temp_file.write(formatted_text)
-                    temp_file.close()
-                    
-                    # Use existing load_sentences method
-                    sentences = self.model.load_sentences(temp_file.name)
-                    
-                    # Store path for cleanup (optional)
-                    self.temp_pdf_file = temp_file.name
                     
                 except Exception as e:
                     self.view.show_message("Error", f"Error: {str(e)}")
                     return
-                finally:
-                    # Clean up temp file immediately after use
-                    if temp_file and os.path.exists(temp_file.name):
-                        try:
-                            os.unlink(temp_file.name)
-                        except:
-                            pass
             else:
                 sentences = self.model.load_sentences(filepath)
             
@@ -688,7 +665,7 @@ class AudiobookController:
         else:
             pass
 
-    def extract_text_from_pdf(self, pdf_path):
+    def extract_text_from_pdf(self, pdf_path, page_callback=None):
         """
         Extract text from a PDF file.
         
@@ -696,26 +673,33 @@ class AudiobookController:
             pdf_path (str): Path to the PDF file
         
         Returns:
-            str: Extracted text or None if failed
+            int | list[str] | None: Number of processed pages when a callback is
+                supplied, otherwise extracted page texts.
         """
         try:
             # Try using pdfplumber first (better results)
             import pdfplumber
             
-            text = ""
+            page_texts = []
+            page_count = 0
             with pdfplumber.open(pdf_path) as pdf:
                 for page in pdf.pages:
                     page_text = page.extract_text()
                     if page_text:
-                        text += page_text + "\n\n"  # Add double newline between pages
+                        page_count += 1
+                        if page_callback:
+                            page_callback(page_text)
+                        else:
+                            page_texts.append(page_text)
             
-            if text.strip():
-                return text.strip()
+            if page_count:
+                return page_count if page_callback else page_texts
             
             # If pdfplumber fails or returns empty, try PyPDF2 as fallback
             import PyPDF2
             
-            text = ""
+            page_texts = []
+            page_count = 0
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
                 
@@ -734,9 +718,13 @@ class AudiobookController:
                 for page in pdf_reader.pages:
                     page_text = page.extract_text()
                     if page_text:
-                        text += page_text + "\n\n"  # Add double newline between pages
+                        page_count += 1
+                        if page_callback:
+                            page_callback(page_text)
+                        else:
+                            page_texts.append(page_text)
             
-            return text.strip() if text.strip() else None
+            return page_count if page_callback else (page_texts or None)
             
         except ImportError as e:
             self.view.show_message(
@@ -835,9 +823,6 @@ class AudiobookController:
         self.view.stop_generation_button.setEnabled(False)
         self.view.enable_buttons()
         self.update_table_with_sentences()
-    def on_generation_concurrency_changed(self, value):
-        self.global_settings['max_parallel_generations'] = value
-        self.model.save_settings({'max_parallel_generations': value})
     def on_generation_started(self):
         self.is_generating = True
         self.view.on_enable_stop_button()
@@ -1121,10 +1106,9 @@ class AudiobookController:
             else:
                 self.model.text_audio_map.clear()
 
-            sentence_list = self.model.load_sentences(self.model.filepath)
-
-            # Update text_audio_map with new sentences
-            self.model.update_text_audio_map(sentence_list)
+            if not self.model.filepath.lower().endswith('.pdf'):
+                sentence_list = self.model.load_sentences(self.model.filepath)
+                self.model.update_text_audio_map(sentence_list)
 
             # Save the updated map
             self.model.save_text_audio_map(directory_path)
