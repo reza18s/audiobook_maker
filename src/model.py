@@ -375,7 +375,7 @@ class AudiobookModel:
                 color = speaker.get('color', '#FFFFFF')
                 if isinstance(color, str):
                     speaker['color'] = QColor(color)
-                speaker.setdefault('settings', {})['tts_engine'] = 'F5TTS'
+                speaker.setdefault('settings', {}).setdefault('tts_engine', 'F5TTS')
             return settings
         else:
             return {}

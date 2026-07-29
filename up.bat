@@ -82,6 +82,8 @@ mkdir engines\f5tts\duration
 mkdir engines\f5tts\models
 mkdir engines\f5tts\tokenizers
 mkdir engines\f5tts\vocoders
+mkdir engines\f5tts_1_1_22\models
+mkdir engines\f5tts_1_1_22\tokenizers
 
 @echo ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 @echo ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

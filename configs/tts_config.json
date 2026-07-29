@@ -117,6 +117,106 @@
                     "default": -1
                 }
             ]
+        },
+        {
+            "name": "F5TTS 1.1.22",
+            "upload_params": {
+                "AI Models": [
+                    {
+                        "label": "Model Name",
+                        "type": "text",
+                        "attribute": "upload_f5tts_1_1_22_model_name"
+                    },
+                    {
+                        "label": "Browse F5TTS 1.1.22 model",
+                        "type": "file",
+                        "attribute": "upload_f5tts_1_1_22_model_path",
+                        "file_filter": "Model Files (*.safetensors *.pt);;All Files (*)",
+                        "save_path": "engines/f5tts_1_1_22/models",
+                        "save_format": "file"
+                    },
+                    {
+                        "label": "Browse tokenizer",
+                        "type": "file",
+                        "attribute": "upload_f5tts_1_1_22_tokenizer_path",
+                        "file_filter": "Tokenizer Files (*.txt);;All Files (*)",
+                        "save_path": "engines/f5tts_1_1_22/tokenizers",
+                        "save_format": "file"
+                    }
+                ],
+                "Voice Reference File": [
+                    {
+                        "label": "Voice Name",
+                        "type": "text",
+                        "attribute": "upload_f5tts_1_1_22_voice_name"
+                    },
+                    {
+                        "label": "Browse Reference Audio",
+                        "type": "file",
+                        "attribute": "upload_f5tts_1_1_22_voice_ref_path",
+                        "file_filter": "Audio Files (*.wav *.mp3 *.m4a *.ogg *.flac *.aac);;All Files (*)",
+                        "save_path": "voices/f5tts",
+                        "save_format": "folder"
+                    },
+                    {
+                        "label": "Reference Audio Transcription",
+                        "type": "text",
+                        "attribute": "upload_f5tts_1_1_22_voice_ref_transcription",
+                        "save_path": "voices/f5tts",
+                        "save_format": "folder"
+                    }
+                ]
+            },
+            "parameters": [
+                {
+                    "label": "Voice to Use",
+                    "type": "combobox",
+                    "attribute": "f5tts_1_1_22_voice",
+                    "function": "get_combobox_items",
+                    "folder_path": "voices/f5tts",
+                    "look_for": "folders",
+                    "include_none_option": false
+                },
+                {
+                    "label": "Model to Use",
+                    "type": "combobox",
+                    "attribute": "f5tts_1_1_22_model",
+                    "function": "get_combobox_items",
+                    "folder_path": "engines/f5tts_1_1_22/models",
+                    "look_for": "files",
+                    "file_filter": "*.pt;*.safetensors",
+                    "recursive": true,
+                    "include_none_option": true
+                },
+                {
+                    "label": "Tokenizer to Use",
+                    "type": "combobox",
+                    "attribute": "f5tts_1_1_22_tokenizer",
+                    "function": "get_combobox_items",
+                    "folder_path": "engines/f5tts_1_1_22/tokenizers",
+                    "look_for": "files",
+                    "file_filter": "*.txt",
+                    "recursive": true,
+                    "include_none_option": true
+                },
+                {
+                    "label": "Speed of Output",
+                    "type": "slider",
+                    "attribute": "f5tts_1_1_22_speed",
+                    "min": 1,
+                    "max": 200,
+                    "default": 100,
+                    "step": 100
+                },
+                {
+                    "label": "Seed (-1 is random)",
+                    "type": "spinbox",
+                    "attribute": "f5tts_1_1_22_seed",
+                    "min": -1,
+                    "max": 9999999,
+                    "default": -1
+                }
+            ]
         }
     ]
 }

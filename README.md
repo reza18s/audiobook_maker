@@ -170,15 +170,20 @@ If you use it like this, you will only be able to use pyttsx3.  To install addit
    ```
    .\venv\Scripts\activate
    ```
-1. Install the F5-TTS submodule as a package:
+1. Install the legacy F5-TTS submodule:
    ```
    pip install .\modules\F5-TTS
    ```
-2. Ensure requirements are at the versions they need to be at:
+2. Install the project requirements. This installs the separate F5-TTS 1.1.22
+   package while the application continues loading legacy mode from the submodule:
    ```
    pip install -r requirements.txt
    ```
-3. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install)
+3. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install).
+
+Both `F5TTS` (legacy) and `F5TTS 1.1.22` are available in the TTS Engine
+dropdown. They share reference voices, while 1.1.22 stores custom checkpoints
+and tokenizers under `engines/f5tts_1_1_22`.
 
 ### GPT-SoVITS Installation
 0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):

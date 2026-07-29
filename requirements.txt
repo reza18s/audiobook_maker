@@ -1,5 +1,6 @@
 sounddevice
 soundfile
+f5-tts==1.1.22
 pydub
 requests
 pyyaml
