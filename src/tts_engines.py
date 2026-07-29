@@ -209,9 +209,29 @@ def load_with_f5tts_1_1_22(**kwargs):
         vocab_file=tokenizer_path,
         ode_method="euler",
         use_ema=True,
+        vocoder_local_path=_find_local_vocos(),
         device="cuda",
         hf_cache_dir=model_root,
     )
+
+
+def _find_local_vocos():
+    project_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    )
+    vocoder_roots = (
+        os.path.join(project_root, "engines", "f5tts_1_1_22", "vocoders"),
+        os.path.join(project_root, "engines", "f5tts", "vocoders"),
+    )
+    required_files = {"config.yaml", "pytorch_model.bin"}
+
+    for vocoder_root in vocoder_roots:
+        if not os.path.isdir(vocoder_root):
+            continue
+        for directory_path, _, filenames in os.walk(vocoder_root):
+            if required_files.issubset(filenames):
+                return directory_path
+    return None
 
 
 def _get_parameter_folder(engine_config, attribute):

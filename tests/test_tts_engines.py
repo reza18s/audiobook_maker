@@ -53,6 +53,23 @@ class F5TTS1122Tests(unittest.TestCase):
             )
         )
 
+    def test_loads_v1_with_the_existing_local_vocos_cache(self):
+        local_vocoder = os.path.join("cache", "vocos", "snapshot")
+        with (
+            patch.object(
+                tts_engines, "_require_f5tts", return_value=FakeF5TTS
+            ),
+            patch.object(
+                tts_engines,
+                "_find_local_vocos",
+                return_value=local_vocoder,
+                create=True,
+            ),
+        ):
+            engine = tts_engines.load_with_f5tts_1_1_22()
+
+        self.assertEqual(engine.options["vocoder_local_path"], local_vocoder)
+
     def test_generation_reuses_legacy_voice_and_maps_random_seed(self):
         with tempfile.TemporaryDirectory() as temp_directory:
             voice_name = "narrator"
