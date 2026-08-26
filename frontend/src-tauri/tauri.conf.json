@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Audiobook Maker",
+  "version": "0.1.0",
+  "identifier": "com.audiobookmaker.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "Audiobook Maker", "width": 1440, "height": 920, "minWidth": 980, "minHeight": 680 }],
+    "security": { "csp": "default-src 'self'; connect-src 'self' http://localhost:* ws://localhost:* http://*:* ws://*:*" }
+  },
+  "bundle": { "active": true, "targets": "nsis", "windows": { "wix": { "language": "en-US" } } }
+}

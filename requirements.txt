@@ -18,6 +18,11 @@ x_transformers==1.42.6
 pdfplumber
 PyPDF2
 
+# Phase 4-6 gateway and desktop API
+fastapi
+uvicorn
+python-multipart
+
 # Optional: For DeepSpeed (Linux only, comment out on Windows)
 # deepspeed==0.15.0
 

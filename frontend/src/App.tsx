@@ -1,0 +1,103 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiClient } from "./api";
+import { loadToken, saveToken } from "./secureToken";
+import { SentenceTable } from "./SentenceTable";
+import type { Capability, Project } from "./types";
+import "./styles.css";
+
+type Tab = "documents" | "sentences" | "speakers" | "queue" | "export" | "health";
+
+export default function App() {
+  const [baseUrl, setBaseUrl] = useState("http://localhost:8000");
+  const [token, setToken] = useState("");
+  const [client, setClient] = useState<ApiClient | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [tab, setTab] = useState<Tab>("documents");
+  const [error, setError] = useState("");
+
+  useEffect(() => { void loadToken().then(setToken); }, []);
+
+  const connect = async () => {
+    setError("");
+    const next = new ApiClient(baseUrl, token.trim());
+    try { await next.health(); await saveToken(token.trim()); setClient(next); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Connection failed"); }
+  };
+
+  if (!client) return <ConnectionScreen baseUrl={baseUrl} token={token} error={error} onUrl={setBaseUrl} onToken={setToken} onConnect={connect} />;
+  return <ConnectedApp client={client} project={selectedProject} setProject={setSelectedProject} tab={tab} setTab={setTab} onDisconnect={() => setClient(null)} />;
+}
+
+function ConnectionScreen({ baseUrl, token, error, onUrl, onToken, onConnect }: { baseUrl: string; token: string; error: string; onUrl: (value: string) => void; onToken: (value: string) => void; onConnect: () => void }) {
+  return <main className="connection-page"><section className="connection-card"><div className="eyebrow">AUDIOBOOK MAKER</div><h1>Connect your workspace</h1><p className="muted">Connect to the gateway running locally or on your trusted Tailscale server.</p><label>Gateway URL<input value={baseUrl} onChange={(event) => onUrl(event.target.value)} placeholder="http://localhost:8000" /></label><label>API token<input value={token} onChange={(event) => onToken(event.target.value)} type="password" placeholder="Stored in Windows Credential Manager" /></label>{error && <div className="error-banner">{error}</div>}<button className="primary wide" onClick={onConnect}>Connect securely</button></section></main>;
+}
+
+function ConnectedApp({ client, project, setProject, tab, setTab, onDisconnect }: { client: ApiClient; project: Project | null; setProject: (project: Project | null) => void; tab: Tab; setTab: (tab: Tab) => void; onDisconnect: () => void }) {
+  const queryClient = useQueryClient();
+  const projects = useQuery({ queryKey: ["projects"], queryFn: () => client.projects() });
+  const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: () => client.capabilities() });
+  useEffect(() => { const stop = client.events(() => { void queryClient.invalidateQueries({ queryKey: ["jobs"] }); }); return stop; }, [client, queryClient]);
+  useEffect(() => { if (!project && projects.data?.[0]) setProject(projects.data[0]); }, [project, projects.data, setProject]);
+  const createProject = useMutation({ mutationFn: (name: string) => client.createProject(name), onSuccess: (created) => { void queryClient.invalidateQueries({ queryKey: ["projects"] }); setProject(created); } });
+
+  if (projects.isLoading) return <div className="loading">Loading projects…</div>;
+  if (projects.isError) return <div className="loading"><div className="error-banner">{(projects.error as Error).message}</div><button onClick={onDisconnect}>Back to connection</button></div>;
+  if (!project) return <ProjectPicker projects={projects.data ?? []} onSelect={setProject} onCreate={(name) => createProject.mutate(name)} onDisconnect={onDisconnect} />;
+  return <div className="app-shell"><header className="topbar"><div><div className="eyebrow">AUDIOBOOK MAKER</div><strong>{project.name}</strong></div><div className="topbar-actions"><select value={project.id} onChange={(event) => setProject(projects.data?.find((item) => item.id === event.target.value) ?? null)}>{projects.data?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button className="ghost" onClick={onDisconnect}>Disconnect</button></div></header><nav className="tabs">{(["documents", "sentences", "speakers", "queue", "export", "health"] as Tab[]).map((item) => <button className={tab === item ? "tab active" : "tab"} key={item} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav><main className="content">{tab === "documents" && <DocumentsView client={client} project={project} />}{tab === "sentences" && <SentencesView client={client} project={project} />}{tab === "speakers" && <SpeakersView client={client} project={project} capabilities={capabilities.data ?? []} />}{tab === "queue" && <QueueView client={client} />}{tab === "export" && <ExportView client={client} project={project} />}{tab === "health" && <HealthView client={client} />}</main></div>;
+}
+
+function ProjectPicker({ projects, onSelect, onCreate, onDisconnect }: { projects: Project[]; onSelect: (project: Project) => void; onCreate: (name: string) => void; onDisconnect: () => void }) {
+  const [name, setName] = useState("");
+  return <main className="project-page"><div className="page-heading"><div><div className="eyebrow">PROJECTS</div><h1>Choose an audiobook workspace</h1></div><button className="ghost" onClick={onDisconnect}>Disconnect</button></div><div className="project-grid">{projects.map((project) => <button className="project-card" key={project.id} onClick={() => onSelect(project)}><strong>{project.name}</strong><span>{project.document_count} documents · {project.sentence_count} sentences</span></button>)}<form className="project-card new-project" onSubmit={(event) => { event.preventDefault(); if (name.trim()) { onCreate(name.trim()); setName(""); } }}><strong>New project</strong><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Project name" /><button className="primary" type="submit">Create workspace</button></form></div></main>;
+}
+
+function DocumentsView({ client, project }: { client: ApiClient; project: Project }) {
+  const queryClient = useQueryClient();
+  const documents = useQuery({ queryKey: ["documents", project.id], queryFn: () => client.documents(project.id), refetchInterval: 1500 });
+  const [upload, setUpload] = useState(0);
+  const [message, setMessage] = useState("");
+  const onFile = async (file: File) => { setMessage(""); try { await client.uploadDocument(project.id, file, setUpload); setMessage("Upload accepted; ingestion is running in the gateway."); void queryClient.invalidateQueries({ queryKey: ["documents", project.id] }); } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Upload failed"); } };
+  return <section><div className="page-heading"><div><div className="eyebrow">DOCUMENT IMPORT</div><h1>Bring in a book</h1><p className="muted">TXT and selectable-text PDF files are processed incrementally on the server.</p></div><label className="upload-button"><input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); }} />Import document</label></div>{upload > 0 && upload < 100 && <div className="progress"><span style={{ width: `${upload}%` }} /></div>}{message && <div className="info-banner">{message}</div>}<div className="document-list">{documents.data?.map((document) => <article className="document-card" key={document.id}><div><strong>{document.filename}</strong><span>{document.kind.toUpperCase()} · {document.persisted_sentences.toLocaleString()} sentences</span></div><span className={`status status-${document.status}`}>{document.status}</span>{document.error && <small className="error-text">{document.error}</small>}</article>)}</div></section>;
+}
+
+function SentencesView({ client, project }: { client: ApiClient; project: Project }) {
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
+  const page = useQuery({ queryKey: ["sentences", project.id, offset, query], queryFn: () => client.sentences(project.id, { offset, limit: 100, query, status: "", speakerId: "" }), refetchInterval: 2000 });
+  const speakers = useQuery({ queryKey: ["speakers", project.id], queryFn: () => client.speakers(project.id) });
+  const update = async (id: string, changes: { text?: string; speaker_id?: string | null }) => { await client.updateSentence(id, changes); void queryClient.invalidateQueries({ queryKey: ["sentences", project.id] }); };
+  const queue = async () => { if (selected.length) { await client.queueGeneration(project.id, selected); setSelected([]); void queryClient.invalidateQueries({ queryKey: ["jobs"] }); } };
+  const items = page.data?.items ?? [];
+  return <section><div className="page-heading"><div><div className="eyebrow">SENTENCE BROWSER</div><h1>{(page.data?.total ?? 0).toLocaleString()} sentences</h1></div><div className="inline-actions"><input value={query} onChange={(event) => { setOffset(0); setQuery(event.target.value); }} placeholder="Filter text…" /><button className="primary" disabled={!selected.length} onClick={() => void queue()}>Generate {selected.length || "selected"}</button></div></div><SentenceTable sentences={items} speakers={speakers.data?.items ?? []} selectedIds={new Set(selected)} onToggle={(id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} loadAudio={(id) => client.audio(id)} onEdit={(sentence, text) => void update(sentence.id, { text })} onSpeaker={(sentence, speaker_id) => void update(sentence.id, { speaker_id: speaker_id || null })} /><div className="pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><span>{offset + 1}–{Math.min(offset + 100, page.data?.total ?? 0)} of {page.data?.total ?? 0}</span><button disabled={offset + 100 >= (page.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next</button></div></section>;
+}
+
+function SpeakersView({ client, project, capabilities }: { client: ApiClient; project: Project; capabilities: Capability[] }) {
+  const queryClient = useQueryClient();
+  const speakers = useQuery({ queryKey: ["speakers", project.id], queryFn: () => client.speakers(project.id) });
+  const [name, setName] = useState("");
+  const [engine, setEngine] = useState(capabilities[0]?.id ?? "");
+  const [voice, setVoice] = useState("");
+  const [settings, setSettings] = useState<Record<string, unknown>>({});
+  const selectedCapability = capabilities.find((item) => item.id === engine);
+  const create = async () => { if (!name.trim() || !engine) return; await client.createSpeaker(project.id, { name, color: "#8EE6C6", engine_id: engine, voice, settings }); setName(""); setSettings({}); void queryClient.invalidateQueries({ queryKey: ["speakers", project.id] }); };
+  return <section><div className="page-heading"><div><div className="eyebrow">SPEAKERS & PROFILES</div><h1>Voice configuration</h1><p className="muted">Engine controls are supplied by capability schemas from the gateway.</p></div></div><div className="speaker-layout"><div className="panel"><h2>Add speaker</h2><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Narrator or character" /><select value={engine} onChange={(event) => { setEngine(event.target.value); setSettings({}); }}><option value="">Select engine</option>{capabilities.map((item) => <option value={item.id} key={item.id}>{item.display_name} · {item.version}</option>)}</select><input value={voice} onChange={(event) => setVoice(event.target.value)} placeholder="Voice identifier" />{selectedCapability && <CapabilitySettings capability={selectedCapability} settings={settings} onChange={setSettings} />}<button className="primary" onClick={() => void create()}>Add speaker</button></div><div className="speaker-list">{speakers.data?.items.map((speaker) => <article className="speaker-card" key={speaker.id}><span className="speaker-dot" style={{ background: speaker.color }} /><div><strong>{speaker.name}</strong><span>{speakers.data?.profiles.find((profile) => profile.speaker_id === speaker.id)?.engine_id ?? "Profile incomplete"}</span></div></article>)}</div></div></section>;
+}
+
+function CapabilitySettings({ capability, settings, onChange }: { capability: Capability; settings: Record<string, unknown>; onChange: (settings: Record<string, unknown>) => void }) {
+  type CapabilityField = { name: string; type?: unknown; default?: unknown; label?: unknown; options?: unknown[]; min?: unknown; max?: unknown };
+  const schema = capability.parameters;
+  const fields: CapabilityField[] = Array.isArray(schema)
+    ? schema.map((item) => ({ name: String(item.name ?? item.key ?? "setting"), ...item }))
+    : Object.entries(schema ?? {}).map(([name, value]) => ({ name, ...(typeof value === "object" && value !== null ? value : { default: value }) }));
+  if (!fields.length) return null;
+  return <div className="capability-settings"><div className="settings-label">Generation settings</div>{fields.map((field) => { const type = String(field.type ?? (typeof field.default === "number" ? "number" : "text")); const value = settings[field.name] ?? field.default ?? ""; const setValue = (next: unknown) => onChange({ ...settings, [field.name]: next }); return <label key={field.name}>{String(field.label ?? field.name)}{type === "boolean" ? <input type="checkbox" checked={Boolean(value)} onChange={(event) => setValue(event.target.checked)} /> : Array.isArray(field.options) ? <select value={String(value)} onChange={(event) => setValue(event.target.value)}>{field.options.map((option: unknown) => <option key={String(option)} value={String(option)}>{String(option)}</option>)}</select> : <input type={type === "number" || type === "integer" ? "number" : "text"} value={String(value)} min={field.min as number | undefined} max={field.max as number | undefined} step={type === "integer" ? 1 : "any"} onChange={(event) => setValue(type === "number" || type === "integer" ? Number(event.target.value) : event.target.value)} />}</label>; })}</div>;
+}
+
+function QueueView({ client }: { client: ApiClient }) { const jobs = useQuery({ queryKey: ["jobs"], queryFn: () => client.jobs(), refetchInterval: 1000 }); return <section><div className="page-heading"><div><div className="eyebrow">GENERATION QUEUE</div><h1>Durable jobs</h1></div></div><div className="job-list">{jobs.data?.map((job) => <article className="job-card" key={job.job_id}><div><strong>{job.job_id.slice(0, 8)}</strong><span>{job.progress.message} · attempt {job.attempts}/{job.max_attempts}</span></div><div className="job-progress"><span style={{ width: `${job.progress.percent}%` }} /></div><span className={`status status-${job.status}`}>{job.status}</span>{["queued", "running", "retrying"].includes(job.status) && <button className="ghost" onClick={() => void client.cancelJob(job.job_id)}>Cancel</button>}</article>)}</div></section>; }
+
+function ExportView({ client, project }: { client: ApiClient; project: Project }) { const queryClient = useQueryClient(); const exports = useQuery({ queryKey: ["exports", project.id], queryFn: () => client.exports(project.id), refetchInterval: 1500 }); const [format, setFormat] = useState<"mp3" | "wav">("mp3"); const [pause, setPause] = useState(0.4); const create = async () => { await client.createExport(project.id, format, pause); void queryClient.invalidateQueries({ queryKey: ["exports", project.id] }); }; return <section><div className="page-heading"><div><div className="eyebrow">MEDIA EXPORT</div><h1>Assemble the audiobook</h1><p className="muted">Missing or failed sentence audio is reported before FFmpeg starts.</p></div><div className="inline-actions"><select value={format} onChange={(event) => setFormat(event.target.value as "mp3" | "wav")}><option value="mp3">MP3 · 192 kbps</option><option value="wav">WAV · PCM</option></select><label className="number-field">Pause <input type="number" min="0" step="0.1" value={pause} onChange={(event) => setPause(Number(event.target.value))} /> sec</label><button className="primary" onClick={() => void create()}>Start export</button></div></div><div className="export-list">{exports.data?.map((item) => <article className="export-card" key={item.id}><div><strong>{item.format.toUpperCase()} export</strong><span>{item.output_path}</span></div><div className="job-progress"><span style={{ width: `${item.percent}%` }} /></div><span className={`status status-${item.status}`}>{item.status} · {item.percent}%</span>{["queued", "running", "cancelling"].includes(item.status) && <button className="ghost" onClick={() => void client.cancelExport(item.id)}>Cancel</button>}{item.error && <small className="error-text">{item.error}</small>}</article>)}</div></section>; }
+
+function HealthView({ client }: { client: ApiClient }) { const health = useQuery({ queryKey: ["health"], queryFn: () => client.health() }); const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: () => client.capabilities() }); return <section><div className="page-heading"><div><div className="eyebrow">ENGINE & GPU HEALTH</div><h1>Server status</h1></div></div><div className="health-grid"><div className="metric-card"><span>Gateway</span><strong>{health.data?.status ?? "checking"}</strong><small>Contract v{health.data?.contract_version ?? "—"}</small></div><div className="metric-card"><span>Storage</span><strong>Connected</strong><small>{health.data?.storage ?? "—"}</small></div><div className="metric-card"><span>Production engines</span><strong>{capabilities.data?.length ?? 0}</strong><small>Discovered by gateway</small></div></div><div className="capability-list">{capabilities.data?.map((capability) => <article className="capability-card" key={capability.id}><strong>{capability.display_name}</strong><span>{capability.version} · {capability.requires_gpu ? "GPU required" : "CPU capable"}</span><small>{capability.supported_languages?.join(", ") || "Languages reported by worker"}</small></article>)}</div></section>; }

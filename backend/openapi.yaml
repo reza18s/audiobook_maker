@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: Audiobook Maker Gateway
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+security:
+  - bearerAuth: []
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      responses: {"200": {description: Ready}}
+  /v1/capabilities:
+    get:
+      operationId: listCapabilities
+      responses: {"200": {description: Engine capabilities}}
+  /v1/projects:
+    get:
+      operationId: listProjects
+      responses: {"200": {description: Projects}}
+    post:
+      operationId: createProject
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProjectInput'}}}}
+      responses: {"201": {description: Created}}
+  /v1/projects/{projectId}/documents:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: listDocuments
+      responses: {"200": {description: Documents}}
+    post:
+      operationId: uploadDocument
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
+      responses: {"202": {description: Accepted for incremental ingestion}}
+  /v1/projects/{projectId}/sentences:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: listSentences
+      parameters:
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 1000, default: 100}}
+        - {name: query, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: speaker_id, in: query, schema: {type: string}}
+      responses: {"200": {description: Bounded sentence page}}
+  /v1/sentences/{sentenceId}:
+    parameters: [{name: sentenceId, in: path, required: true, schema: {type: string}}]
+    patch:
+      operationId: updateSentence
+      requestBody: {required: true, content: {application/json: {schema: {type: object}}}}
+      responses: {"200": {description: Updated sentence}}
+  /v1/sentences/{sentenceId}/audio:
+    parameters: [{name: sentenceId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: getSentenceAudio
+      responses: {"200": {description: Sentence audio file}}
+  /v1/projects/{projectId}/speakers:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: listSpeakers
+      responses: {"200": {description: Speakers and profiles}}
+    post:
+      operationId: createSpeaker
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [name], properties: {name: {type: string}, color: {type: string}, engine_id: {type: string}, voice: {type: string}, settings: {type: object}}}}}}
+      responses: {"201": {description: Created speaker}}
+  /v1/projects/{projectId}/generation:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: queueGeneration
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {sentence_ids: {type: array, items: {type: string}}, query: {type: string}, status: {type: string}, speaker_id: {type: string}}}}}}
+      responses: {"202": {description: Durable jobs queued}}
+  /v1/jobs:
+    get:
+      operationId: listJobs
+      responses: {"200": {description: Generation jobs}}
+  /v1/jobs/{jobId}:
+    parameters: [{name: jobId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: getJob
+      responses: {"200": {description: Job status}}
+  /v1/jobs/{jobId}/cancel:
+    parameters: [{name: jobId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: cancelJob
+      responses: {"200": {description: Cancellation requested}}
+  /v1/projects/{projectId}/exports:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: listExports
+      responses: {"200": {description: Export jobs}}
+    post:
+      operationId: createExport
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {format: {type: string, enum: [mp3, wav]}, pause_seconds: {type: number, minimum: 0}}}}}}
+      responses: {"202": {description: Export queued}}
+  /v1/exports/{exportId}/cancel:
+    parameters: [{name: exportId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: cancelExport
+      responses: {"200": {description: Export cancellation requested}}
+  /v1/events:
+    get:
+      operationId: progressEvents
+      description: WebSocket endpoint. Pass the API token as the token query parameter.
+      responses: {"101": {description: Switching Protocols}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  schemas:
+    ProjectInput:
+      type: object
+      required: [name]
+      properties: {name: {type: string, minLength: 1}}

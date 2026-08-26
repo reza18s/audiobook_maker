@@ -101,6 +101,15 @@ class SQLiteQueue:
         row = self._row(job_id)
         return _status_from_row(row)
 
+    def list_statuses(self, *, limit: int = 100) -> list[JobStatusResponse]:
+        if limit < 1 or limit > 1000:
+            raise QueueError("job limit must be between 1 and 1000")
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC, job_id LIMIT ?", (limit,)
+            ).fetchall()
+        return [_status_from_row(row) for row in rows]
+
     def claim_next(self) -> GenerateRequest | None:
         """Atomically claim the oldest queued job, respecting max concurrency."""
 

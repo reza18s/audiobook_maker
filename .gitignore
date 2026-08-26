@@ -9,6 +9,9 @@ tort.yaml
 __pycache__/
 .venv/
 venv/
+node_modules/
+frontend/dist/
+frontend/src-tauri/target/
 audiobooks/
 output/
 .vscode/
