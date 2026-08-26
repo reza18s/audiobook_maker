@@ -12,6 +12,7 @@ venv/
 node_modules/
 frontend/dist/
 frontend/src-tauri/target/
+frontend/src-tauri/gen/
 audiobooks/
 output/
 .vscode/
