@@ -203,6 +203,10 @@ class SQLiteQueue:
                 "UPDATE jobs SET status = ?, error = ?, message = ?, updated_at = ? WHERE status = ? AND attempts >= max_attempts",
                 (JobStatus.FAILED.value, "Worker stopped after the retry limit", "Failed", now, JobStatus.RUNNING.value),
             )
+            self._connection.execute(
+                "UPDATE jobs SET status = ?, message = ?, updated_at = ? WHERE status = ?",
+                (JobStatus.CANCELLED.value, "Cancelled after restart", now, JobStatus.CANCEL_REQUESTED.value),
+            )
             self._connection.commit()
 
     def _create_schema(self) -> None:

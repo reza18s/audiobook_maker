@@ -1,0 +1,71 @@
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gateway
+    restart: unless-stopped
+    environment:
+      AUDIOBOOK_API_TOKEN: ${AUDIOBOOK_API_TOKEN:?Set AUDIOBOOK_API_TOKEN in .env}
+      AUDIOBOOK_DATABASE: /data/sqlite/audiobook.sqlite3
+      AUDIOBOOK_STORAGE_ROOT: /data/projects
+      MEDIA_WORKER_EXTERNAL: "${MEDIA_WORKER_EXTERNAL:-1}"
+      F5TTS_URL: http://f5tts-worker:8001
+      CHATTERBOX_URL: http://chatterbox-worker:8002
+    ports:
+      - "${GATEWAY_BIND_ADDRESS:-127.0.0.1}:8000:8000"
+    volumes:
+      - project-data:/data/projects
+      - sqlite-data:/data/sqlite
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sqlite3; sqlite3.connect(os.environ['AUDIOBOOK_DATABASE']).execute('SELECT 1')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  media-worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.media
+    restart: unless-stopped
+    environment:
+      AUDIOBOOK_DATABASE: /data/sqlite/audiobook.sqlite3
+      FFMPEG_BIN: ffmpeg
+      MEDIA_POLL_SECONDS: "${MEDIA_POLL_SECONDS:-1}"
+    volumes:
+      - project-data:/data/projects
+      - sqlite-data:/data/sqlite
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  f5tts-worker:
+    image: ${F5TTS_IMAGE:-audiobook-maker-f5tts:latest}
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${F5_GPU_ID:-0}
+      MODEL_VOLUME: /models
+      PROJECT_VOLUME: /data/projects
+    volumes:
+      - project-data:/data/projects
+      - f5tts-models:/models
+    expose:
+      - "8001"
+
+  chatterbox-worker:
+    image: ${CHATTERBOX_IMAGE:-audiobook-maker-chatterbox:latest}
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${CHATTERBOX_GPU_ID:-0}
+      MODEL_VOLUME: /models
+      PROJECT_VOLUME: /data/projects
+    volumes:
+      - project-data:/data/projects
+      - chatterbox-models:/models
+    expose:
+      - "8002"
+
+volumes:
+  project-data:
+  sqlite-data:
+  f5tts-models:
+  chatterbox-models:

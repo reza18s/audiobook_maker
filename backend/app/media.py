@@ -63,33 +63,35 @@ class MediaExportService:
             raise ExportError("export format must be mp3 or wav")
         if pause_seconds < 0:
             raise ExportError("pause duration cannot be negative")
-        sentences = self.store.get_export_sentences(project_id)
-        if not sentences:
-            raise ExportError("project has no sentences to export")
-        invalid = [
-            sentence["id"]
-            for sentence in sentences
-            if sentence["status"] != "completed"
-            or not sentence.get("audio_path")
-            or not Path(sentence["audio_path"]).is_file()
-        ]
-        if invalid:
-            preview = ", ".join(invalid[:5])
-            suffix = "..." if len(invalid) > 5 else ""
-            raise ExportError(f"missing or failed sentence audio: {preview}{suffix}")
+        existing_export = self.store.get_export(export_id) if export_id else None
+        if existing_export and existing_export["status"] in {"cancelled", "cancelling"}:
+            return self.store.update_export(existing_export["id"], status="cancelled", error="Cancelled")
+        try:
+            sentences = self.store.get_export_sentences(project_id)
+            if not sentences:
+                raise ExportError("project has no sentences to export")
+            invalid = [
+                sentence["id"]
+                for sentence in sentences
+                if sentence["status"] != "completed"
+                or not sentence.get("audio_path")
+                or not Path(sentence["audio_path"]).is_file()
+            ]
+            if invalid:
+                preview = ", ".join(invalid[:5])
+                suffix = "..." if len(invalid) > 5 else ""
+                raise ExportError(f"missing or failed sentence audio: {preview}{suffix}")
 
-        destination = Path(output_path)
-        if destination.suffix.lower() != f".{output_format}":
-            raise ExportError("output path extension must match export format")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        export = (
-            self.store.get_export(export_id)
-            if export_id
-            else self.store.create_export(project_id, output_format, pause_seconds, str(destination))
-        )
+            destination = Path(output_path)
+            if destination.suffix.lower() != f".{output_format}":
+                raise ExportError("output path extension must match export format")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as error:
+            if existing_export:
+                self.store.update_export(existing_export["id"], status="failed", error=str(error))
+            raise
+        export = existing_export or self.store.create_export(project_id, output_format, pause_seconds, str(destination))
         export_id = export["id"]
-        if export["status"] in {"cancelled", "cancelling"}:
-            return self.store.update_export(export_id, status="cancelled", error="Cancelled")
         cancel_event = Event()
         with self._lock:
             self._cancel_events[export_id] = cancel_event

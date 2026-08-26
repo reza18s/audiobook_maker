@@ -52,10 +52,11 @@ def create_app(
     ingestor = DocumentIngestor(store)
     media = MediaExportService(store)
     engine_capabilities = capabilities or []
+    external_media_worker = os.environ.get("MEDIA_WORKER_EXTERNAL", "0").lower() in {"1", "true", "yes", "on"}
     app = FastAPI(title="Audiobook Maker Gateway", version="1.0.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["tauri://localhost", "http://localhost:1420"],
+        allow_origins=["tauri://localhost", "http://tauri.localhost", "http://localhost:1420"],
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -325,14 +326,15 @@ def create_app(
             export_id = str(uuid4())
             output_path = output_dir / f"audiobook-{export_id}.{output_format}"
             export = store.create_export(project_id, output_format, float(payload.get("pause_seconds", 0)), str(output_path))
-            background_tasks.add_task(
-                media.export_project,
-                project_id,
-                output_path=output_path,
-                output_format=output_format,
-                pause_seconds=float(payload.get("pause_seconds", 0)),
-                export_id=export_id,
-            )
+            if not external_media_worker:
+                background_tasks.add_task(
+                    media.export_project,
+                    project_id,
+                    output_path=output_path,
+                    output_format=output_format,
+                    pause_seconds=float(payload.get("pause_seconds", 0)),
+                    export_id=export_id,
+                )
             return export
         except Exception as error:
             handle_domain_error(error)

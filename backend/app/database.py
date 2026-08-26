@@ -447,6 +447,13 @@ class SQLiteStore:
             )
             self._connection.commit()
 
+    def list_pending_exports(self) -> list[dict]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM exports WHERE status = 'queued' ORDER BY created_at, id"
+            ).fetchall()
+        return [_row_dict(row) for row in rows]
+
     def update_export(self, export_id: str, **changes: object) -> dict:
         allowed = {"status", "total_sentences", "completed_sentences", "percent", "error", "output_path"}
         unknown = set(changes) - allowed

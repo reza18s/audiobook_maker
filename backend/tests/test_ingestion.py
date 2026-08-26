@@ -55,6 +55,20 @@ class DocumentIngestionTests(unittest.TestCase):
         self.assertEqual(len(page), 1)
         self.assertEqual(page[0]["text"], "Two.")
 
+    def test_txt_checkpoint_resume_does_not_duplicate_sentences(self):
+        source = self.root / "resume.txt"
+        source.write_text("One. Two.", encoding="utf-8")
+        document = self.store.create_document(self.project["id"], source.name, str(source), "txt")
+        self.store.append_sentences(document["id"], [{"text": "One.", "sequence": 0}])
+        self.store.update_document_progress(
+            document["id"], status="processing", checkpoint_offset=4, persisted_sentences=1
+        )
+
+        DocumentIngestor(self.store).ingest(document["id"], chunk_size=3)
+
+        sentences = self.store.list_sentences(self.project["id"], limit=10)
+        self.assertEqual([item["text"] for item in sentences], ["One.", "Two."])
+
 
 if __name__ == "__main__":
     unittest.main()

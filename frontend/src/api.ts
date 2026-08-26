@@ -102,8 +102,18 @@ export class ApiClient {
   events(onMessage: (message: unknown) => void): () => void {
     const url = new URL(`${this.baseUrl.replace(/^http/, "ws")}/v1/events`);
     url.searchParams.set("token", this.token);
-    const socket = new WebSocket(url);
-    socket.onmessage = (event) => onMessage(JSON.parse(event.data as string));
-    return () => socket.close();
+    let socket: WebSocket | null = null;
+    let stopped = false;
+    let reconnectTimer: number | undefined;
+    const connect = () => {
+      if (stopped) return;
+      socket = new WebSocket(url);
+      socket.onmessage = (event) => onMessage(JSON.parse(event.data as string));
+      socket.onclose = () => {
+        if (!stopped) reconnectTimer = window.setTimeout(connect, 1000);
+      };
+    };
+    connect();
+    return () => { stopped = true; if (reconnectTimer) window.clearTimeout(reconnectTimer); socket?.close(); };
   }
 }

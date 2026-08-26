@@ -50,6 +50,16 @@ class SQLiteQueueTests(unittest.TestCase):
         self.assertEqual(reopened.get_status("job-1").status, JobStatus.CANCELLED)
         reopened.close()
 
+    def test_active_cancellation_is_terminal_after_restart(self):
+        self.queue.enqueue(GenerateRequest("job-1", "f5tts", "Cancel me"))
+        self.queue.claim_next()
+        self.assertEqual(self.queue.cancel("job-1").status, JobStatus.CANCEL_REQUESTED)
+        self.queue.close()
+
+        reopened = SQLiteQueue(Path(self.temp_dir.name) / "jobs.sqlite3")
+        self.assertEqual(reopened.get_status("job-1").status, JobStatus.CANCELLED)
+        reopened.close()
+
 
 if __name__ == "__main__":
     unittest.main()
