@@ -10,7 +10,7 @@ services:
       AUDIOBOOK_STORAGE_ROOT: /data/projects
       MEDIA_WORKER_EXTERNAL: "${MEDIA_WORKER_EXTERNAL:-1}"
       F5TTS_URL: http://f5tts-worker:8001
-      CHATTERBOX_URL: http://chatterbox-worker:8002
+      CHATTERBOX_URL: "${CHATTERBOX_URL:-}"
     ports:
       - "${GATEWAY_BIND_ADDRESS:-127.0.0.1}:8000:8000"
     volumes:
@@ -48,7 +48,7 @@ services:
       AUDIOBOOK_DATABASE: /data/sqlite/audiobook.sqlite3
       AUDIOBOOK_STORAGE_ROOT: /data/projects
       F5TTS_URL: http://f5tts-worker:8001
-      CHATTERBOX_URL: http://chatterbox-worker:8002
+      CHATTERBOX_URL: "${CHATTERBOX_URL:-}"
       ENGINE_WORKER_POLL_SECONDS: "${ENGINE_WORKER_POLL_SECONDS:-1}"
       ENGINE_REQUEST_TIMEOUT_SECONDS: "${ENGINE_REQUEST_TIMEOUT_SECONDS:-900}"
     volumes:
@@ -56,8 +56,6 @@ services:
       - sqlite-data:/data/sqlite
     depends_on:
       f5tts-worker:
-        condition: service_healthy
-      chatterbox-worker:
         condition: service_healthy
 
   f5tts-worker:
@@ -75,6 +73,7 @@ services:
       - "8001"
 
   chatterbox-worker:
+    profiles: ["chatterbox"]
     image: ${CHATTERBOX_IMAGE:-audiobook-maker-chatterbox:latest}
     restart: unless-stopped
     environment:

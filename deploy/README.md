@@ -33,6 +33,12 @@ Persistent data is held in `project-data`, `sqlite-data`, `f5tts-models`, and
 `chatterbox-models`.  Back up the first two before upgrades and keep model
 volumes when replacing an engine image.
 
-The supplied engine repository currently publishes Chatterbox and debug TTS
-images, but not an F5-TTS image. Set `F5TTS_IMAGE` only after an F5-TTS image
-adapted to the shared engine contract is available.
+The default stack runs with F5-TTS only. Chatterbox is optional: build or pull
+its image, set `CHATTERBOX_URL=http://chatterbox-worker:8002`, and start the
+Compose profile with:
+
+```powershell
+docker compose --profile chatterbox --env-file deploy\.env -f deploy\docker-compose.yml -f deploy\docker-compose.nvidia.yml up -d --build
+```
+
+The F5-TTS image must be available locally or configured through `F5TTS_IMAGE`.
