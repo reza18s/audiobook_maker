@@ -52,6 +52,9 @@ export type Capability = {
   supported_languages?: string[];
   requires_gpu?: boolean;
   max_concurrency?: number;
+  healthy?: boolean;
+  model_loaded?: boolean;
+  device?: string;
   parameters?: Record<string, unknown> | Array<Record<string, unknown>>;
 };
 
