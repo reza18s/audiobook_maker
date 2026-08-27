@@ -8,6 +8,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PLACEHOLDER_IMAGES = {
+    "audiobook-maker-f5tts:latest",
+    "audiobook-maker-chatterbox:latest",
+}
 
 
 def main() -> int:
@@ -19,11 +23,18 @@ def main() -> int:
         "Media worker": ROOT / "backend/app/media_worker.py",
         "Engine client": ROOT / "backend/app/engine_client.py",
         "Generation worker": ROOT / "backend/app/engine_worker.py",
+        "Supported launcher": ROOT / "start.bat",
     }
     failures = [f"missing {name}: {path}" for name, path in required.items() if not path.is_file()]
     for variable in ("F5TTS_IMAGE", "CHATTERBOX_IMAGE"):
-        if not os.environ.get(variable, "").strip():
+        image = os.environ.get(variable, "").strip()
+        if not image:
             failures.append(f"{variable} is not set to a production engine image")
+        elif image in PLACEHOLDER_IMAGES:
+            failures.append(f"{variable} still uses the local placeholder image name")
+    launcher = required["Supported launcher"]
+    if launcher.is_file() and "controller.py" in launcher.read_text(encoding="utf-8").lower():
+        failures.append("start.bat still launches the legacy PySide client")
     if failures:
         print("Phase 9 cutover is not ready:")
         for failure in failures:

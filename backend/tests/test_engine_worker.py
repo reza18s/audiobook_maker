@@ -22,6 +22,7 @@ class FakeEngine:
     def __init__(self, failures: int = 0) -> None:
         self.failures = failures
         self.requests = []
+        self.samples = []
 
     def ensure_ready(self) -> dict:
         return {"status": "ready", "engineModelLoaded": True}
@@ -32,6 +33,10 @@ class FakeEngine:
             self.failures -= 1
             raise RuntimeError("temporary engine failure")
         return wav_bytes()
+
+    def upload_sample(self, sample_id: str, audio: bytes) -> dict:
+        self.samples.append((sample_id, audio))
+        return {"status": "ok"}
 
 
 class GenerationWorkerTests(unittest.TestCase):
@@ -44,7 +49,12 @@ class GenerationWorkerTests(unittest.TestCase):
             document = worker.store.create_document(project["id"], "book.txt", str(root / "book.txt"), "txt")
             worker.store.append_sentences(document["id"], [{"text": "Hello.", "sequence": 0}])
             sentence = worker.store.list_sentences(project["id"], limit=1)[0]
-            request = GenerateRequest("job-1", "debug-tts", sentence["text"], language="en")
+            sample_path = worker.root / project["id"] / "samples" / "speaker.wav"
+            sample_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_path.write_bytes(wav_bytes())
+            request = GenerateRequest(
+                "job-1", "debug-tts", sentence["text"], language="en", speaker_sample="speaker.wav"
+            )
             worker.queue.enqueue(request)
             worker.store.update_sentence(sentence["id"], status="queued", generation_job_id=request.job_id)
 
@@ -54,6 +64,7 @@ class GenerationWorkerTests(unittest.TestCase):
             self.assertEqual(completed["status"], "completed")
             self.assertTrue((worker.root / completed["audio_path"]).is_file())
             self.assertEqual(engine.requests[0].language, "en")
+            self.assertEqual(engine.samples[0][0], "speaker")
             worker.close()
 
     def test_three_failures_mark_one_sentence_failed_and_continue(self):

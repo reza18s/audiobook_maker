@@ -63,6 +63,18 @@ paths:
       operationId: createSpeaker
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [name], properties: {name: {type: string}, color: {type: string}, engine_id: {type: string}, voice: {type: string}, settings: {type: object}}}}}}
       responses: {"201": {description: Created speaker}}
+  /v1/speakers/{speakerId}/sample:
+    parameters: [{name: speakerId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: uploadSpeakerSample
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
+      responses: {"201": {description: Speaker WAV sample stored}}
+  /v1/speakers/{speakerId}/profile:
+    parameters: [{name: speakerId, in: path, required: true, schema: {type: string}}]
+    put:
+      operationId: updateSpeakerProfile
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [engine_id], properties: {engine_id: {type: string}, voice: {type: string}, settings: {type: object}}}}}}
+      responses: {"200": {description: Updated engine profile}}
   /v1/projects/{projectId}/generation:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     post:

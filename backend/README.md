@@ -1,9 +1,9 @@
 # Audiobook Maker backend
 
-The backend now contains the Phase 1–5 foundation: stable contracts, the
-durable SQLite generation queue, project/document/sentence persistence,
-resumable TXT and selectable-text PDF ingestion, and a cancellable FFmpeg
-media export service.  The HTTP transport is exposed by `backend.app.api`.
+The backend contains the stable contracts, durable SQLite generation queue,
+project/document/sentence persistence, resumable TXT and selectable-text PDF
+ingestion, HTTP engine generation worker, and cancellable FFmpeg media export
+worker. The HTTP transport is exposed by `backend.app.api`.
 
 Run the gateway after installing `requirements.txt` and configuring a token:
 
@@ -16,6 +16,17 @@ The API is versioned under `/v1`; the checked-in contract is
 volume before ingestion, and sentence APIs always return bounded pages.
 
 The Phase 6 Windows client lives in `frontend/` and is packaged with Tauri 2.
+
+Run the generation worker separately from the gateway when using engine
+services:
+
+```text
+python -m backend.app.engine_worker
+```
+
+Set `F5TTS_URL`, `CHATTERBOX_URL`, or `ENGINE_WORKER_URLS` so it can reach the
+engine containers. The engine service contract is documented by the supplied
+`audiobook-maker-engines` repository.
 
 The `backend.app.contracts` module is the Phase 1 shared contract between the
 desktop application, the gateway, and engine workers.  It is deliberately

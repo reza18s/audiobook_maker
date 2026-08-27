@@ -16,9 +16,12 @@ cannot finish generation.
   retries three times, and continues with later sentences after a failure.
 - [ ] Cancellation works for queued and active generation jobs.
 - [ ] Sentence audio can be reviewed and regenerated from the Tauri client.
+- [ ] Chatterbox speaker WAV samples can be uploaded and reach the isolated
+  engine service before generation.
 - [ ] MP3 and WAV exports complete, report progress, and cancel safely.
 - [ ] Project and SQLite volumes have a tested backup and restore procedure.
 - [ ] No project is created in PySide during the release candidate test.
+- [x] `start.bat` launches the Tauri client rather than the legacy PySide app.
 
 Run the static gate from the repository root:
 

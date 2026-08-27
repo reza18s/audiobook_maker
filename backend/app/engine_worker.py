@@ -64,6 +64,7 @@ class GenerationWorker:
                 Progress(completed=0, total=1, percent=0, message="Preparing engine"),
             )
             client.ensure_ready()
+            self._upload_speaker_sample(client, request, sentence["project_id"])
             self.queue.update_progress(
                 request.job_id,
                 Progress(completed=0, total=1, percent=0, message="Generating audio"),
@@ -115,6 +116,19 @@ class GenerationWorker:
     def _cancel(self, job_id: str, sentence: dict) -> None:
         self.queue.mark_cancelled(job_id)
         self.store.cancel_generation(sentence["id"], job_id)
+
+    def _upload_speaker_sample(self, client: EngineClient, request: GenerateRequest, project_id: str) -> None:
+        if not request.speaker_sample:
+            return
+        sample_name = Path(request.speaker_sample).name
+        sample_path = (self.root / project_id / "samples" / sample_name).resolve()
+        try:
+            sample_path.relative_to(self.root / project_id)
+        except ValueError as error:
+            raise EngineClientError("speaker sample path is outside the project volume") from error
+        if not sample_path.is_file():
+            return
+        client.upload_sample(sample_path.stem, sample_path.read_bytes())
 
     def _write_audio(self, project_id: str, sentence_id: str, audio: bytes) -> str:
         destination = (self.root / project_id / "audio" / f"{sentence_id}.wav").resolve()

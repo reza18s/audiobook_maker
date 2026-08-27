@@ -53,6 +53,17 @@ class EngineClientTests(unittest.TestCase):
         self.assertEqual(payload["parameters"]["temperature"], 0.8)
 
     @patch("backend.app.engine_client.urlopen")
+    def test_upload_sample_uses_engine_repository_binary_endpoint(self, urlopen):
+        urlopen.return_value = FakeResponse(b'{"status":"ok"}')
+
+        EngineClient("http://engine").upload_sample("sample-id", b"wav-data")
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "http://engine/samples/upload/sample-id")
+        self.assertEqual(request.data, b"wav-data")
+        self.assertEqual(request.headers["Content-type"], "audio/wav")
+
+    @patch("backend.app.engine_client.urlopen")
     def test_ensure_ready_loads_reported_default_model(self, urlopen):
         responses = [
             FakeResponse(json.dumps({"status": "ready", "engineModelLoaded": False}).encode()),

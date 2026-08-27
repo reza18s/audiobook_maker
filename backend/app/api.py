@@ -261,6 +261,40 @@ def create_app(
             handle_domain_error(error)
             raise AssertionError("unreachable")
 
+    @app.post("/v1/speakers/{speaker_id}/sample", status_code=201)
+    async def upload_speaker_sample(
+        speaker_id: str,
+        file: UploadFile = File(...),
+        _: None = Depends(require_token),
+    ) -> dict:
+        try:
+            speaker = store.get_speaker(speaker_id)
+            filename = Path(file.filename or "speaker.wav").name
+            if Path(filename).suffix.lower() != ".wav":
+                raise DatabaseError("speaker samples must be WAV files")
+            sample_id = str(uuid4())
+            sample_name = f"{sample_id}.wav"
+            destination = project_dir(speaker["project_id"]) / "samples" / sample_name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            total_bytes = 0
+            with destination.open("wb") as output:
+                while chunk := await file.read(1024 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > 100 * 1024 * 1024:
+                        destination.unlink(missing_ok=True)
+                        raise DatabaseError("speaker sample must be 100 MB or smaller")
+                    output.write(chunk)
+            profiles = store.list_engine_profiles(speaker["project_id"])
+            profile = next((item for item in profiles if item["speaker_id"] == speaker_id), None)
+            if profile:
+                store.upsert_engine_profile(
+                    speaker_id, profile["engine_id"], sample_name, profile["settings"]
+                )
+            return {"sample_id": sample_id, "filename": sample_name, "bytes": total_bytes}
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
     @app.post("/v1/projects/{project_id}/generation", status_code=202)
     def queue_generation(project_id: str, payload: dict[str, Any], _: None = Depends(require_token)) -> dict:
         try:

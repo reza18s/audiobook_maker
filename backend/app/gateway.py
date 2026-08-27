@@ -1,9 +1,9 @@
-"""Small local gateway state machine for Phase 2.
+"""Small dependency-free gateway state machine retained for contract tests.
 
-The gateway owns job state but does not run model code yet.  A future worker
-can consume queued jobs through this same state model.  Keeping this layer
-dependency-free also means starting the desktop app never installs packages or
-downloads model files.
+The production HTTP gateway persists queue state and the separate
+``backend.app.engine_worker`` calls isolated engine services. This module keeps
+the original Phase 2 state-machine contract available without loading model
+dependencies.
 """
 
 from __future__ import annotations

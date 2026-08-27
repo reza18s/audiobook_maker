@@ -1,7 +1,8 @@
 # Audiobook Maker v3
 This application utilizes open-source deep-learning text-to-speech and speech-to-speech models to create audiobooks.  The main goal of the project is to be able to seamlessly create high-quality audiobooks by using these advancements in machine learning/AI.
 
-It's designed for **Windows,** but pyside6 should be able to run on linux.
+The supported desktop client is a **Windows Tauri 2 application**. The Python
+gateway, generation worker, media worker, and TTS engines run as services.
 
 ## Table of Contents
 - [Features](#features)
@@ -59,7 +60,30 @@ For **F5 TTS**, an additional download will be incurred when you first use it du
 - NVIDIA GPU with at least 8GB of VRAM (for heavier inference models like Tortoise, 4-6 GB might be possible as we're not training here)
 - Install CUDA toolkit, see issue: https://github.com/JarodMica/audiobook_maker/issues/63#issuecomment-2430191713
 
-### GUI Installation
+### Tauri desktop installation
+
+The supported desktop client is the Tauri application. The Python gateway and
+engine services run through Docker; see [deploy/README.md](deploy/README.md)
+for local and remote setup.
+
+1. Install Rust with the stable MSVC toolchain and install Bun.
+2. Copy `deploy/.env.example` to `deploy/.env`, then set real engine image
+   names and a long API token.
+3. Start the gateway, generation worker, media worker, and engine services:
+   ```powershell
+   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+   ```
+4. Build the Windows client:
+   ```powershell
+   cd frontend
+   bun install
+   bun run tauri build
+   ```
+
+After building, `start.bat` launches the Windows client. Without a release
+build it starts the Tauri development client.
+
+### Legacy PySide GUI Installation (deprecated)
 1. Clone the repository and cd into it.
    ```
    git clone https://github.com/JarodMica/audiobook_maker.git

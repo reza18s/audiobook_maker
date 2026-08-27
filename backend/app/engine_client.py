@@ -6,6 +6,7 @@ import json
 import os
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .contracts import GenerateRequest
@@ -69,6 +70,25 @@ class EngineClient:
 
     def load(self, model_name: str) -> dict[str, Any]:
         return self._json_request("/load", method="POST", payload={"engineModelName": model_name})
+
+    def upload_sample(self, sample_id: str, audio: bytes) -> dict[str, Any]:
+        """Make a project speaker sample available inside the engine service."""
+
+        if not audio:
+            raise EngineClientError("speaker sample cannot be empty")
+        body, _ = self._request(
+            f"/samples/upload/{quote(sample_id, safe='')}" ,
+            method="POST",
+            raw_body=audio,
+            content_type="audio/wav",
+        )
+        try:
+            value = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise EngineClientError("engine returned invalid sample upload JSON") from error
+        if not isinstance(value, dict):
+            raise EngineClientError("engine returned a non-object sample upload response")
+        return value
 
     def ensure_ready(self) -> dict[str, Any]:
         """Load the configured default model when a service has not loaded one."""
@@ -141,19 +161,27 @@ class EngineClient:
         return value
 
     def _request(
-        self, path: str, *, method: str = "GET", payload: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+        raw_body: bytes | None = None,
+        content_type: str = "application/json",
     ) -> tuple[bytes, Mapping[str, str]]:
         paths = [f"{self.api_prefix}{path}"]
         if not self.api_prefix:
             # The engine repository currently serves the contract at root;
             # the fallback keeps the client compatible with a future /v1 API.
             paths.append(f"/v1{path}")
-        body = json.dumps(payload).encode("utf-8") if payload is not None else None
+        if payload is not None and raw_body is not None:
+            raise EngineClientError("request cannot contain JSON and raw body together")
+        body = raw_body if raw_body is not None else json.dumps(payload).encode("utf-8") if payload is not None else None
         for index, route in enumerate(paths):
             request = Request(
                 f"{self.base_url}{route}",
                 data=body,
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                headers={"Accept": "application/json", "Content-Type": content_type},
                 method=method,
             )
             try:

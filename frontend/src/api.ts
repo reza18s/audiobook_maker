@@ -67,6 +67,11 @@ export class ApiClient {
   updateProfile(speakerId: string, payload: { engine_id: string; voice: string; settings: Record<string, unknown> }) {
     return this.request<EngineProfile>(`/v1/speakers/${speakerId}/profile`, { method: "PUT", body: JSON.stringify(payload) });
   }
+  uploadSpeakerSample(speakerId: string, file: File) {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    return this.request<{ sample_id: string; filename: string; bytes: number }>(`/v1/speakers/${speakerId}/sample`, { method: "POST", body });
+  }
   queueGeneration(projectId: string, sentenceIds: string[]) {
     return this.request<{ job_ids: string[]; count: number }>(`/v1/projects/${projectId}/generation`, { method: "POST", body: JSON.stringify({ sentence_ids: sentenceIds }) });
   }
