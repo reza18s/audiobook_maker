@@ -25,8 +25,10 @@ python -m backend.app.engine_worker
 ```
 
 Set `F5TTS_URL`, `CHATTERBOX_URL`, or `ENGINE_WORKER_URLS` so it can reach the
-engine containers. The engine service contract is documented by the supplied
-`audiobook-maker-engines` repository.
+engine containers. These settings are optional: the gateway and queue can run
+without any engine service, and the Compose `engines` profile starts the
+isolated containers when generation is needed. The engine service contract is
+documented by the supplied `audiobook-maker-engines` repository.
 
 The `backend.app.contracts` module is the Phase 1 shared contract between the
 desktop application, the gateway, and engine workers.  It is deliberately

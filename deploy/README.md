@@ -1,12 +1,11 @@
 # Docker deployment
 
-The Compose stack runs the gateway, durable generation worker, external media
-worker, and one isolated container for each TTS engine. Engine images are built
-and published by the separate `audiobook-maker-engines` repository. The TTS
-containers are `debug-tts-worker` (8003), `f5tts-worker` (8001),
-`chatterbox-worker` (8002), `vibevoice-worker` (8004), and `xtts-worker` (8005).
-Each engine exposes `/health`, `/info`, `/load`, and `/generate` on its own
-internal port; the generation worker also accepts a future `/v1` prefix.
+The Compose stack runs the gateway, durable generation worker, and external
+media worker without requiring any TTS images. Engine images are built and
+published by the separate `audiobook-maker-engines` repository. When the
+`engines` profile is enabled, each TTS engine runs in its own container:
+`debug-tts-worker` (8003), `f5tts-worker` (8001), `chatterbox-worker` (8002),
+`vibevoice-worker` (8004), and `xtts-worker` (8005).
 
 ## Local host
 
@@ -17,6 +16,9 @@ docker compose --env-file deploy\.env -f deploy\docker-compose.yml up -d --build
 ```
 
 The default bind is `127.0.0.1`, so the gateway is local-only.
+
+This starts the app backend without any engine images. The engine capability
+list is empty until an engine is started; the rest of the app remains available.
 
 ## Linux NVIDIA server
 
@@ -35,11 +37,17 @@ Persistent data is held in `project-data`, `sqlite-data`, and one model volume
 per engine. Back up the first two before upgrades and keep model volumes when
 replacing an engine image.
 
-Build or pull all five TTS images before starting the stack. For local images,
+Build or pull all five TTS images before starting the engine profile. For local images,
 use the tags in `deploy\.env.example` (or change each `*_IMAGE` variable to the
 matching GHCR image from `audiobook-maker-engines`). The NVIDIA override assigns
 one GPU reservation to each production GPU engine; change `*_GPU_ID` when
 running engines on different GPU devices.
+
+Start all engine containers alongside the app with:
+
+```powershell
+docker compose --profile engines --env-file deploy\.env -f deploy\docker-compose.yml -f deploy\docker-compose.nvidia.yml up -d --build
+```
 
 To build the local images from the sibling engine repository:
 

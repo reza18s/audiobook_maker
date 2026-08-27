@@ -61,18 +61,11 @@ services:
       - project-data:/data/projects
       - sqlite-data:/data/sqlite
     depends_on:
-      debug-tts-worker:
-        condition: service_healthy
-      f5tts-worker:
-        condition: service_healthy
-      chatterbox-worker:
-        condition: service_healthy
-      vibevoice-worker:
-        condition: service_healthy
-      xtts-worker:
+      gateway:
         condition: service_healthy
 
   debug-tts-worker:
+    profiles: ["engines"]
     image: ${DEBUG_TTS_IMAGE:-audiobook-maker-debug-tts:latest}
     restart: unless-stopped
     environment:
@@ -85,6 +78,7 @@ services:
       - "8003"
 
   f5tts-worker:
+    profiles: ["engines"]
     image: ${F5TTS_IMAGE:-audiobook-maker-f5tts:latest}
     restart: unless-stopped
     environment:
@@ -99,6 +93,7 @@ services:
       - "8001"
 
   chatterbox-worker:
+    profiles: ["engines"]
     image: ${CHATTERBOX_IMAGE:-audiobook-maker-chatterbox:latest}
     restart: unless-stopped
     environment:
@@ -113,6 +108,7 @@ services:
       - "8002"
 
   vibevoice-worker:
+    profiles: ["engines"]
     image: ${VIBEVOICE_IMAGE:-audiobook-maker-vibevoice:latest}
     restart: unless-stopped
     environment:
@@ -127,6 +123,7 @@ services:
       - "8004"
 
   xtts-worker:
+    profiles: ["engines"]
     image: ${XTTS_IMAGE:-audiobook-maker-xtts:latest}
     restart: unless-stopped
     environment:
