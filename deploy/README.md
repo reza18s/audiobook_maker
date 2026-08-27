@@ -1,10 +1,12 @@
 # Docker deployment
 
 The Compose stack runs the gateway, durable generation worker, external media
-worker, and the two production engine image slots. Engine images are built and
-published by the separate `audiobook-maker-engines` repository. The current
-engine images expose `/health`, `/info`, `/load`, and `/generate` on ports 8001
-and 8002; the generation worker also accepts a future `/v1` prefix.
+worker, and one isolated container for each TTS engine. Engine images are built
+and published by the separate `audiobook-maker-engines` repository. The TTS
+containers are `debug-tts-worker` (8003), `f5tts-worker` (8001),
+`chatterbox-worker` (8002), `vibevoice-worker` (8004), and `xtts-worker` (8005).
+Each engine exposes `/health`, `/info`, `/load`, and `/generate` on its own
+internal port; the generation worker also accepts a future `/v1` prefix.
 
 ## Local host
 
@@ -29,16 +31,23 @@ For a remote Tailscale client, set `GATEWAY_BIND_ADDRESS=0.0.0.0` and expose
 port 8000 only through the host firewall/Tailscale network.  Do not publish
 the engine ports or expose the server directly to the public internet.
 
-Persistent data is held in `project-data`, `sqlite-data`, `f5tts-models`, and
-`chatterbox-models`.  Back up the first two before upgrades and keep model
-volumes when replacing an engine image.
+Persistent data is held in `project-data`, `sqlite-data`, and one model volume
+per engine. Back up the first two before upgrades and keep model volumes when
+replacing an engine image.
 
-The default stack runs with F5-TTS only. Chatterbox is optional: build or pull
-its image, set `CHATTERBOX_URL=http://chatterbox-worker:8002`, and start the
-Compose profile with:
+Build or pull all five TTS images before starting the stack. For local images,
+use the tags in `deploy\.env.example` (or change each `*_IMAGE` variable to the
+matching GHCR image from `audiobook-maker-engines`). The NVIDIA override assigns
+one GPU reservation to each production GPU engine; change `*_GPU_ID` when
+running engines on different GPU devices.
+
+To build the local images from the sibling engine repository:
 
 ```powershell
-docker compose --profile chatterbox --env-file deploy\.env -f deploy\docker-compose.yml -f deploy\docker-compose.nvidia.yml up -d --build
+cd ..\audiobook-maker-engines
+docker build -t audiobook-maker-debug-tts:latest -f tts\debug-tts\Dockerfile .
+docker build -t audiobook-maker-f5tts:latest -f tts\f5tts\Dockerfile .
+docker build -t audiobook-maker-chatterbox:latest -f tts\chatterbox\Dockerfile .
+docker build -t audiobook-maker-vibevoice:latest -f tts\vibevoice\Dockerfile .
+docker build -t audiobook-maker-xtts:latest -f tts\xtts\Dockerfile .
 ```
-
-The F5-TTS image must be available locally or configured through `F5TTS_IMAGE`.
