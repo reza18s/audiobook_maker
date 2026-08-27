@@ -38,16 +38,39 @@ services:
       gateway:
         condition: service_healthy
 
+  generation-worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.gateway
+    command: ["python", "-m", "backend.app.engine_worker"]
+    restart: unless-stopped
+    environment:
+      AUDIOBOOK_DATABASE: /data/sqlite/audiobook.sqlite3
+      AUDIOBOOK_STORAGE_ROOT: /data/projects
+      F5TTS_URL: http://f5tts-worker:8001
+      CHATTERBOX_URL: http://chatterbox-worker:8002
+      ENGINE_WORKER_POLL_SECONDS: "${ENGINE_WORKER_POLL_SECONDS:-1}"
+      ENGINE_REQUEST_TIMEOUT_SECONDS: "${ENGINE_REQUEST_TIMEOUT_SECONDS:-900}"
+    volumes:
+      - project-data:/data/projects
+      - sqlite-data:/data/sqlite
+    depends_on:
+      f5tts-worker:
+        condition: service_healthy
+      chatterbox-worker:
+        condition: service_healthy
+
   f5tts-worker:
     image: ${F5TTS_IMAGE:-audiobook-maker-f5tts:latest}
     restart: unless-stopped
     environment:
+      PORT: "8001"
       NVIDIA_VISIBLE_DEVICES: ${F5_GPU_ID:-0}
       MODEL_VOLUME: /models
       PROJECT_VOLUME: /data/projects
     volumes:
       - project-data:/data/projects
-      - f5tts-models:/models
+      - f5tts-models:/app/external_models
     expose:
       - "8001"
 
@@ -55,12 +78,13 @@ services:
     image: ${CHATTERBOX_IMAGE:-audiobook-maker-chatterbox:latest}
     restart: unless-stopped
     environment:
+      PORT: "8002"
       NVIDIA_VISIBLE_DEVICES: ${CHATTERBOX_GPU_ID:-0}
       MODEL_VOLUME: /models
       PROJECT_VOLUME: /data/projects
     volumes:
       - project-data:/data/projects
-      - chatterbox-models:/models
+      - chatterbox-models:/app/external_models
     expose:
       - "8002"
 

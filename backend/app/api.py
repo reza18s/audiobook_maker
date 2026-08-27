@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from .contracts import GenerateRequest, to_json_dict
+from .contracts import GenerateRequest, JobStatus, to_json_dict
 from .database import DatabaseError, SQLiteStore
+from .engine_client import EngineRegistry
 from .ingestion import DocumentIngestor, IngestionError
 from .media import MediaExportService
 from .queue import QueueError, SQLiteQueue
@@ -51,7 +52,8 @@ def create_app(
     queue = SQLiteQueue(database_path)
     ingestor = DocumentIngestor(store)
     media = MediaExportService(store)
-    engine_capabilities = capabilities or []
+    engine_registry = EngineRegistry.from_environment()
+    engine_capabilities = list(capabilities) if capabilities is not None else []
     external_media_worker = os.environ.get("MEDIA_WORKER_EXTERNAL", "0").lower() in {"1", "true", "yes", "on"}
     app = FastAPI(title="Audiobook Maker Gateway", version="1.0.0")
     app.add_middleware(
@@ -66,6 +68,7 @@ def create_app(
     app.state.ingestor = ingestor
     app.state.media = media
     app.state.ingestion_tasks = set()
+    app.state.engine_registry = engine_registry
 
     def schedule_ingestion(document_id: str) -> None:
         task = asyncio.create_task(asyncio.to_thread(ingestor.ingest, document_id))
@@ -74,6 +77,8 @@ def create_app(
 
     @app.on_event("startup")
     async def resume_ingestion() -> None:
+        if capabilities is None:
+            engine_capabilities[:] = await asyncio.to_thread(engine_registry.discover)
         for document in store.list_incomplete_documents():
             schedule_ingestion(document["id"])
 
@@ -104,6 +109,8 @@ def create_app(
 
     @app.get("/v1/capabilities")
     def get_capabilities(_: None = Depends(require_token)) -> list[dict[str, Any]]:
+        if capabilities is None:
+            engine_capabilities[:] = engine_registry.discover()
         return engine_capabilities
 
     @app.get("/v1/projects")
@@ -279,11 +286,17 @@ def create_app(
                     raise QueueError(f"speaker profile is missing for sentence {sentence_id}")
                 job_id = str(uuid4())
                 request = GenerateRequest(
-                    job_id, profile["engine_id"], sentence["text"],
+                    job_id,
+                    profile["engine_id"],
+                    sentence["text"],
+                    language=str(payload.get("language", "en")).strip() or "en",
+                    speaker_sample=str(profile["voice"] or "").strip() or None,
                     parameters=json.loads(profile["settings"] or "{}"),
                 )
                 queue.enqueue(request)
-                store.update_sentence(sentence_id, status="queued", generation_job_id=job_id, error=None)
+                store.update_sentence(
+                    sentence_id, status="queued", audio_path=None, generation_job_id=job_id, error=None
+                )
                 queued.append(job_id)
             return {"job_ids": queued, "count": len(queued)}
         except Exception as error:
@@ -305,7 +318,11 @@ def create_app(
     @app.post("/v1/jobs/{job_id}/cancel")
     def cancel_job(job_id: str, _: None = Depends(require_token)) -> dict:
         try:
-            return to_json_dict(queue.cancel(job_id))
+            result = queue.cancel(job_id)
+            sentence = store.get_sentence_by_generation_job(job_id)
+            if sentence and result.status == JobStatus.CANCELLED:
+                store.cancel_generation(sentence["id"], job_id)
+            return to_json_dict(result)
         except Exception as error:
             handle_domain_error(error)
             raise AssertionError("unreachable")

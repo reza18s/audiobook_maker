@@ -1,9 +1,10 @@
 # Docker deployment
 
-The Compose stack runs the gateway, external media worker, and the two
-production engine-worker image slots.  Engine images are built and published
-by the separate `audiobook-maker-engines` repository; they must expose the
-versioned engine contract on ports 8001 and 8002.
+The Compose stack runs the gateway, durable generation worker, external media
+worker, and the two production engine image slots. Engine images are built and
+published by the separate `audiobook-maker-engines` repository. The current
+engine images expose `/health`, `/info`, `/load`, and `/generate` on ports 8001
+and 8002; the generation worker also accepts a future `/v1` prefix.
 
 ## Local host
 
@@ -31,3 +32,7 @@ the engine ports or expose the server directly to the public internet.
 Persistent data is held in `project-data`, `sqlite-data`, `f5tts-models`, and
 `chatterbox-models`.  Back up the first two before upgrades and keep model
 volumes when replacing an engine image.
+
+The supplied engine repository currently publishes Chatterbox and debug TTS
+images, but not an F5-TTS image. Set `F5TTS_IMAGE` only after an F5-TTS image
+adapted to the shared engine contract is available.

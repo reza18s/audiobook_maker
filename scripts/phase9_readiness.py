@@ -17,6 +17,8 @@ def main() -> int:
         "OpenAPI contract": ROOT / "backend/openapi.yaml",
         "Compose deployment": ROOT / "deploy/docker-compose.yml",
         "Media worker": ROOT / "backend/app/media_worker.py",
+        "Engine client": ROOT / "backend/app/engine_client.py",
+        "Generation worker": ROOT / "backend/app/engine_worker.py",
     }
     failures = [f"missing {name}: {path}" for name, path in required.items() if not path.is_file()]
     for variable in ("F5TTS_IMAGE", "CHATTERBOX_IMAGE"):

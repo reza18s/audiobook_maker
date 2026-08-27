@@ -311,6 +311,41 @@ class SQLiteStore:
             raise DatabaseError(f"unknown sentence: {sentence_id}")
         return _row_dict(row)
 
+    def get_sentence_by_generation_job(self, job_id: str) -> dict | None:
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT s.*, d.project_id, d.filename AS document_filename
+                FROM sentences s JOIN documents d ON d.id = s.document_id
+                WHERE s.generation_job_id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+        return _row_dict(row) if row is not None else None
+
+    def complete_generation(self, sentence_id: str, job_id: str, audio_path: str) -> bool:
+        return self._finish_generation(sentence_id, job_id, "completed", audio_path, None)
+
+    def fail_generation(self, sentence_id: str, job_id: str, error: str) -> bool:
+        return self._finish_generation(sentence_id, job_id, "failed", None, error)
+
+    def cancel_generation(self, sentence_id: str, job_id: str) -> bool:
+        return self._finish_generation(sentence_id, job_id, "cancelled", None, "Cancelled")
+
+    def _finish_generation(
+        self, sentence_id: str, job_id: str, status: str, audio_path: str | None, error: str | None
+    ) -> bool:
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                UPDATE sentences SET status = ?, audio_path = ?, error = ?, updated_at = ?
+                WHERE id = ? AND generation_job_id = ?
+                """,
+                (status, audio_path, error, _timestamp(), sentence_id, job_id),
+            )
+            self._connection.commit()
+        return cursor.rowcount == 1
+
     def update_sentence(self, sentence_id: str, **changes: object) -> dict:
         allowed = {"text", "speaker_id", "status", "audio_path", "generation_job_id", "error"}
         unknown = set(changes) - allowed

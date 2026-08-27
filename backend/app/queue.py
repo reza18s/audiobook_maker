@@ -149,6 +149,8 @@ class SQLiteQueue:
     def fail(self, job_id: str, error: str) -> JobStatusResponse:
         with self._lock:
             row = self._row(job_id)
+            if row["status"] == JobStatus.CANCEL_REQUESTED.value:
+                return self._mark_cancelled_locked(job_id)
             next_status = (
                 JobStatus.RETRYING
                 if row["attempts"] < row["max_attempts"]
@@ -160,6 +162,10 @@ class SQLiteQueue:
             )
             self._connection.commit()
             return self.get_status(job_id)
+
+    def mark_cancelled(self, job_id: str) -> JobStatusResponse:
+        with self._lock:
+            return self._mark_cancelled_locked(job_id)
 
     def requeue_retry(self, job_id: str) -> JobStatusResponse:
         with self._lock:
@@ -245,13 +251,24 @@ class SQLiteQueue:
 
     def _set_terminal(self, job_id: str, status: JobStatus, *, audio_path: str | None, message: str) -> JobStatusResponse:
         with self._lock:
-            self._row(job_id)
+            row = self._row(job_id)
+            if status == JobStatus.COMPLETED and row["status"] == JobStatus.CANCEL_REQUESTED.value:
+                return self._mark_cancelled_locked(job_id)
             self._connection.execute(
                 "UPDATE jobs SET status = ?, audio_path = ?, percent = 100, message = ?, updated_at = ? WHERE job_id = ?",
                 (status.value, audio_path, message, _timestamp(), job_id),
             )
             self._connection.commit()
             return self.get_status(job_id)
+
+    def _mark_cancelled_locked(self, job_id: str) -> JobStatusResponse:
+        self._row(job_id)
+        self._connection.execute(
+            "UPDATE jobs SET status = ?, error = ?, message = ?, audio_path = NULL, updated_at = ? WHERE job_id = ?",
+            (JobStatus.CANCELLED.value, "Cancelled", "Cancelled", _timestamp(), job_id),
+        )
+        self._connection.commit()
+        return self.get_status(job_id)
 
 
 def _timestamp() -> str:
