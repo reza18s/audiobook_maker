@@ -1,0 +1,20 @@
+.field { display: grid; gap: 8px; margin-top: 16px; color: var(--color-muted-strong); font-size: 13px; }
+.field:first-child { margin-top: 0; }
+.field > span:first-child { font-weight: 650; }
+.field input { margin: 0; min-height: var(--control-height-lg); padding: 0 13px; border-color: #3a4e5f; background: #0f1924; }
+.field input::placeholder { color: #6f8190; }
+.field input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px #8ee6c61c; }
+.field-help { color: var(--color-muted); font-size: 11px; line-height: 1.4; }
+.connection-card .wide { margin-top: 22px; min-height: var(--control-height-lg); }
+input, select, textarea { width: 100%; color: #edf2f7; background: #101822; border: 1px solid #334354; border-radius: 9px; padding: 10px 12px; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: #8ee6c6; }
+textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
+.primary, .upload-button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-sm); padding: 0 16px; color: #0d171b; background: #8ee6c6; font-weight: 750; line-height: 1.2; white-space: nowrap; }
+.primary:hover, .upload-button:hover { background: #b0f1d9; }
+.primary:disabled { opacity: .4; cursor: default; }
+.button-size-sm { min-height: var(--control-height-sm); padding: 0 12px; font-size: 12px; }
+.button-size-lg { min-height: var(--control-height-lg); padding: 0 18px; }
+.button-size-icon { width: var(--control-height); min-height: var(--control-height); padding: 0; }
+.wide { width: 100%; margin-top: 24px; }
+.ghost, .pagination button, .loading > button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 1px solid #334354; border-radius: var(--radius-sm); padding: 0 13px; color: #c1ccd7; background: transparent; line-height: 1.2; white-space: nowrap; }
+.ghost:hover, .pagination button:hover, .loading > button:hover { border-color: #8ee6c6; color: #8ee6c6; }

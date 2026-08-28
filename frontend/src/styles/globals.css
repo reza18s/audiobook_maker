@@ -1,0 +1,17 @@
+:root {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-background);
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { min-width: 0; margin: 0; overflow-x: hidden; background: radial-gradient(circle at 80% 0%, #1a2d39 0, var(--color-background) 42%); }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; appearance: none; }
+button:disabled { cursor: default; }
+:where(button, input, select, textarea):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.eyebrow { color: #8ee6c6; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+h1 { margin: 8px 0 10px; font-size: 31px; letter-spacing: -.04em; }
+h2 { margin: 0 0 16px; font-size: 18px; }
+.muted { color: #91a0af; line-height: 1.5; }
+label { display: grid; gap: 7px; margin-top: 18px; color: #aebaca; font-size: 13px; }

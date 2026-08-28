@@ -1,0 +1,11 @@
+.connection-card .error-banner { margin: 20px 0 0; }
+.button-spinner { width: 14px; height: 14px; margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: button-spin .7s linear infinite; }
+@keyframes button-spin { to { transform: rotate(360deg); } }
+.progress, .job-progress { overflow: hidden; height: 7px; border-radius: 99px; background: #2a3948; }
+.progress { margin: 8px 0 18px; }
+.progress span, .job-progress span { display: block; height: 100%; border-radius: inherit; background: #8ee6c6; transition: width .25s ease; }
+.info-banner, .error-banner { margin: 15px 0; padding: 12px 14px; border-radius: 9px; background: #203332; color: #a4e8d0; }
+.error-banner { background: #3b252a; color: #ffb0b0; }
+.error-text { color: #ff9f9f; }
+.status { white-space: nowrap; font-size: 12px; font-weight: 700; }
+.status-completed, .status-ready { color: #8ee6c6; }.status-failed, .status-cancelled { color: #ff9f9f; }.status-running, .status-processing { color: #ffd58a; }.status-queued, .status-pending, .status-retrying { color: #aab9ff; }
