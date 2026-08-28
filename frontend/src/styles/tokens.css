@@ -1,0 +1,47 @@
+:root {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: #101722;
+  --color-background-muted: #0c121b;
+  --color-surface: #17212d;
+  --color-surface-strong: #131c27;
+  --color-surface-elevated: #1b2938;
+  --color-border: #2b3a49;
+  --color-border-subtle: #283746;
+  --color-text: #edf2f7;
+  --color-text-strong: #f6fbff;
+  --color-muted: #91a0af;
+  --color-muted-strong: #aebaca;
+  --color-accent: #8ee6c6;
+  --color-accent-strong: #b0f1d9;
+  --color-accent-ink: #0d171b;
+  --color-danger-background: #3b252a;
+  --color-danger-text: #ffb0b0;
+
+  --workspace-sidebar-width: 260px;
+  --workspace-sidebar-collapsed-width: 76px;
+  --settings-sidebar-width: 235px;
+  --narration-sidebar-width: 300px;
+  --topbar-height: 78px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --icon-text-gap: var(--space-3);
+  --status-text-gap: var(--space-2);
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+
+  --control-height-sm: 32px;
+  --control-height: 38px;
+  --control-height-lg: 44px;
+  --shadow-card: 0 24px 80px #0006;
+  --shadow-menu: 0 18px 35px #0005;
+}
