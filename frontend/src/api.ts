@@ -83,7 +83,7 @@ export class ApiClient {
   }
   cancelExport(exportId: string) { return this.request<ExportRecord>(`/v1/exports/${exportId}/cancel`, { method: "POST" }); }
 
-  uploadDocument(projectId: string, file: File, onProgress: (percent: number) => void): Promise<Document> {
+  uploadDocument(projectId: string, file: File, onProgress: (percent: number) => void, chapterMarker = ""): Promise<Document> {
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open("POST", `${this.baseUrl.replace(/\/$/, "")}/v1/projects/${projectId}/documents`);
@@ -100,6 +100,7 @@ export class ApiClient {
       };
       const form = new FormData();
       form.append("file", file, file.name);
+      if (chapterMarker.trim()) form.append("chapter_marker", chapterMarker.trim());
       request.send(form);
     });
   }

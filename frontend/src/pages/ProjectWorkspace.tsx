@@ -32,8 +32,18 @@ function DocumentsView({ client, project }: { client: ApiClient; project: Projec
   const documents = useQuery({ queryKey: ["documents", project.id], queryFn: () => client.documents(project.id), refetchInterval: 1500 });
   const [upload, setUpload] = useState(0);
   const [message, setMessage] = useState("");
-  const onFile = async (file: File) => { setMessage(""); try { await client.uploadDocument(project.id, file, setUpload); setMessage("Upload accepted; ingestion is running in the gateway."); void queryClient.invalidateQueries({ queryKey: ["documents", project.id] }); } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Upload failed"); } };
-  return <section><div className="page-heading"><div><div className="eyebrow">DOCUMENT IMPORT</div><h1>Bring in a book</h1><p className="muted">TXT and selectable-text PDF files are processed incrementally on the server.</p></div><label className="upload-button"><input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); }} />Import document</label></div>{upload > 0 && upload < 100 && <div className="progress"><span style={{ width: `${upload}%` }} /></div>}{message && <div className="info-banner">{message}</div>}<div className="document-list">{documents.data?.map((document) => <article className="document-card" key={document.id}><div><strong>{document.filename}</strong><span>{document.kind.toUpperCase()} · {document.persisted_sentences.toLocaleString()} sentences</span></div><span className={`status status-${document.status}`}>{document.status}</span>{document.error && <small className="error-text">{document.error}</small>}</article>)}</div></section>;
+  const [chapterMarker, setChapterMarker] = useState("");
+  const onFile = async (file: File) => {
+    setMessage("");
+    try {
+      await client.uploadDocument(project.id, file, setUpload, chapterMarker);
+      setMessage("Upload accepted; chapter detection and ingestion are running in the gateway.");
+      void queryClient.invalidateQueries({ queryKey: ["documents", project.id] });
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Upload failed");
+    }
+  };
+  return <section><div className="page-heading"><div><div className="eyebrow">DOCUMENT IMPORT</div><h1>Bring in a book</h1><p className="muted">TXT and selectable-text PDF files are processed incrementally on the server.</p></div><div className="document-import-actions"><label className="chapter-marker-field">Custom chapter marker <input value={chapterMarker} onChange={(event) => setChapterMarker(event.target.value)} placeholder="Optional line, e.g. [NEW CHAPTER]" /><span>Chapter headings and --- CHAPTER END --- are detected automatically.</span></label><label className="upload-button"><input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); }} />Import document</label></div></div>{upload > 0 && upload < 100 && <div className="progress"><span style={{ width: `${upload}%` }} /></div>}{message && <div className="info-banner">{message}</div>}<div className="document-list">{documents.data?.map((document) => <article className="document-card" key={document.id}><div><strong>{document.filename}</strong><span>{document.kind.toUpperCase()} · {document.persisted_sentences.toLocaleString()} sentences</span></div><span className={`status status-${document.status}`}>{document.status}</span>{document.error && <small className="error-text">{document.error}</small>}</article>)}</div></section>;
 }
 
 function SentencesView({ client, project, capabilities, sentencePage, sentenceIsFetching, offset, selected, onOffset, onToggleSentence, narrationSidebarOpen, onToggleNarrationSidebar }: { client: ApiClient; project: Project; capabilities: Capability[]; sentencePage?: SentencePage; sentenceIsFetching: boolean; offset: number; selected: string[]; onOffset: (offset: number) => void; onToggleSentence: (id: string) => void; narrationSidebarOpen: boolean; onToggleNarrationSidebar: () => void }) {

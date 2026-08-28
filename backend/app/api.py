@@ -19,11 +19,11 @@ from .queue import QueueError, SQLiteQueue
 
 
 try:
-    from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile, WebSocket
+    from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, WebSocket
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse
 except ImportError:  # pragma: no cover - depends on optional deployment extras
-    BackgroundTasks = Depends = FastAPI = File = Header = HTTPException = UploadFile = WebSocket = None
+    BackgroundTasks = Depends = FastAPI = File = Form = Header = HTTPException = UploadFile = WebSocket = None
     CORSMiddleware = FileResponse = None
 
 
@@ -143,6 +143,7 @@ def create_app(
         project_id: str,
         background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
+        chapter_marker: str = Form(""),
         _: None = Depends(require_token),
     ) -> dict:
         try:
@@ -163,6 +164,7 @@ def create_app(
                 suffix[1:],
                 document_id=document_id,
                 total_bytes=destination.stat().st_size,
+                chapter_marker=chapter_marker,
             )
             background_tasks.add_task(ingestor.ingest, document_id)
             return document

@@ -12,16 +12,41 @@ type Props = {
   onSpeaker: (sentence: Sentence, speakerId: string) => void;
 };
 
+type TableRow =
+  | { kind: "chapter"; key: string; number: number; title: string | null }
+  | { kind: "sentence"; sentence: Sentence };
+
 export function SentenceTable({ sentences, speakers, selectedIds, onToggle, loadAudio, onEdit, onSpeaker }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const rowVirtualizer = useVirtualizer({ count: sentences.length, getScrollElement: () => parentRef.current, estimateSize: () => 66, overscan: 8 });
+  const rows: TableRow[] = [];
+  let previousChapterKey = "";
+  for (const sentence of sentences) {
+    const chapterNumber = sentence.chapter_number || 0;
+    const chapterTitle = sentence.chapter_title ?? null;
+    const chapterKey = `${chapterNumber}:${chapterTitle ?? ""}`;
+    if (chapterNumber > 0 && chapterKey !== previousChapterKey) {
+      rows.push({ kind: "chapter", key: chapterKey, number: chapterNumber, title: chapterTitle });
+      previousChapterKey = chapterKey;
+    }
+    rows.push({ kind: "sentence", sentence });
+  }
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (index) => rows[index]?.kind === "chapter" ? 38 : 66,
+    overscan: 8,
+  });
 
   return (
     <div className="table-shell" ref={parentRef}>
       <div className="sentence-head"><span>Select</span><span>Sentence</span><span>Speaker</span><span>Status</span><span>Audio</span></div>
       <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const sentence = sentences[virtualRow.index];
+          const row = rows[virtualRow.index];
+          if (row.kind === "chapter") {
+            return <div className="chapter-row" key={`chapter-${virtualRow.index}-${row.key}`} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}><span>Chapter {row.number}</span>{row.title && row.title !== String(row.number) && <strong>{row.title}</strong>}</div>;
+          }
+          const sentence = row.sentence;
           return (
             <div className="sentence-row" key={sentence.id} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}>
               <label className="row-select"><input type="checkbox" checked={selectedIds.has(sentence.id)} onChange={() => onToggle(sentence.id)} /><span className="sequence">{sentence.sequence + 1}</span></label>

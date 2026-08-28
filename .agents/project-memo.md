@@ -6,4 +6,5 @@
 - Contract tests run with `python -m unittest discover -s backend/tests -v` and intentionally require no new package installation.
 - `frontend/src/App.tsx` owns connection/bootstrap state; `frontend/src/components/AppShell.tsx` owns global shell and sidebar/sentence state, with navigation in `AppNavigation.tsx` and page composition under `frontend/src/pages/`.
 - `frontend/src/styles.css` owns shared shell variables and responsive drawer/collapse behavior.
+- Chapter-aware ingestion lives in `backend/app/ingestion.py`; chapter state and the optional per-document marker are persisted in SQLite, and `frontend/src/SentenceTable.tsx` renders structural chapter dividers.
 - Frontend validation is `cd frontend; bun run typecheck; bun run build`; when Bun cannot execute local Windows symlinks, the bundled Node runtime can invoke TypeScript and Vite directly.

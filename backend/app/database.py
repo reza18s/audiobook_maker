@@ -93,6 +93,7 @@ class SQLiteStore:
         *,
         document_id: str | None = None,
         total_bytes: int = 0,
+        chapter_marker: str = "",
     ) -> dict:
         self.get_project(project_id)
         if kind not in {"txt", "pdf"}:
@@ -107,10 +108,14 @@ class SQLiteStore:
                         id, project_id, filename, source_path, kind, status,
                         total_bytes, processed_bytes, processed_pages,
                         persisted_sentences, checkpoint_offset, checkpoint_page,
+                        chapter_marker, chapter_number, chapter_title,
                         error, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 0, 0, 0, 0, 0, NULL, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, 'pending', ?, 0, 0, 0, 0, 0, ?, 0, NULL, NULL, ?, ?)
                     """,
-                    (document_id, project_id, filename, source_path, kind, total_bytes, now, now),
+                    (
+                        document_id, project_id, filename, source_path, kind, total_bytes,
+                        chapter_marker.strip(), now, now,
+                    ),
                 )
                 self._connection.execute(
                     "UPDATE projects SET updated_at = ? WHERE id = ?", (now, project_id)
@@ -155,6 +160,8 @@ class SQLiteStore:
         persisted_sentences: int | None = None,
         checkpoint_offset: int | None = None,
         checkpoint_page: int | None = None,
+        chapter_number: int | None = None,
+        chapter_title: str | None = None,
         error: str | None = None,
     ) -> dict:
         document = self.get_document(document_id)
@@ -165,6 +172,8 @@ class SQLiteStore:
             "persisted_sentences": persisted_sentences if persisted_sentences is not None else document["persisted_sentences"],
             "checkpoint_offset": checkpoint_offset if checkpoint_offset is not None else document["checkpoint_offset"],
             "checkpoint_page": checkpoint_page if checkpoint_page is not None else document["checkpoint_page"],
+            "chapter_number": chapter_number if chapter_number is not None else document.get("chapter_number", 0),
+            "chapter_title": chapter_title if chapter_number is not None else document.get("chapter_title"),
             "error": error,
             "updated_at": _timestamp(),
         }
@@ -173,12 +182,13 @@ class SQLiteStore:
                 """
                 UPDATE documents SET status = ?, processed_bytes = ?, processed_pages = ?,
                     persisted_sentences = ?, checkpoint_offset = ?, checkpoint_page = ?,
-                    error = ?, updated_at = ? WHERE id = ?
+                    chapter_number = ?, chapter_title = ?, error = ?, updated_at = ? WHERE id = ?
                 """,
                 (
                     values["status"], values["processed_bytes"], values["processed_pages"],
                     values["persisted_sentences"], values["checkpoint_offset"], values["checkpoint_page"],
-                    values["error"], values["updated_at"], document_id,
+                    values["chapter_number"], values["chapter_title"], values["error"],
+                    values["updated_at"], document_id,
                 ),
             )
             self._connection.commit()
@@ -201,14 +211,16 @@ class SQLiteStore:
                     """
                     INSERT OR IGNORE INTO sentences (
                         id, document_id, sequence, text, page_number, source_offset,
+                        chapter_number, chapter_title,
                         speaker_id, status, audio_path, generation_job_id, error,
                         created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?)
                     """,
                     (
                         item.get("id") or str(uuid4()), document_id, int(item_sequence),
                         str(item["text"]), item.get("page_number", 0),
-                        item.get("source_offset", 0), item.get("speaker_id"), now, now,
+                        item.get("source_offset", 0), item.get("chapter_number", 0),
+                        item.get("chapter_title"), item.get("speaker_id"), now, now,
                     ),
                 )
                 inserted += cursor.rowcount
@@ -533,6 +545,8 @@ class SQLiteStore:
                     status TEXT NOT NULL, total_bytes INTEGER NOT NULL, processed_bytes INTEGER NOT NULL,
                     processed_pages INTEGER NOT NULL, persisted_sentences INTEGER NOT NULL,
                     checkpoint_offset INTEGER NOT NULL, checkpoint_page INTEGER NOT NULL,
+                    chapter_marker TEXT NOT NULL DEFAULT '', chapter_number INTEGER NOT NULL DEFAULT 0,
+                    chapter_title TEXT,
                     error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS documents_project_idx ON documents(project_id, created_at);
@@ -548,7 +562,8 @@ class SQLiteStore:
                 CREATE TABLE IF NOT EXISTS sentences (
                     id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
                     sequence INTEGER NOT NULL, text TEXT NOT NULL, page_number INTEGER NOT NULL,
-                    source_offset INTEGER NOT NULL, speaker_id TEXT REFERENCES speakers(id) ON DELETE SET NULL,
+                    source_offset INTEGER NOT NULL, chapter_number INTEGER NOT NULL DEFAULT 0,
+                    chapter_title TEXT, speaker_id TEXT REFERENCES speakers(id) ON DELETE SET NULL,
                     status TEXT NOT NULL, audio_path TEXT, generation_job_id TEXT, error TEXT,
                     created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                     UNIQUE(document_id, sequence)
@@ -564,6 +579,26 @@ class SQLiteStore:
                 CREATE INDEX IF NOT EXISTS exports_project_idx ON exports(project_id, created_at);
                 """
             )
+            document_columns = {
+                row["name"] for row in self._connection.execute("PRAGMA table_info(documents)").fetchall()
+            }
+            for statement, column in (
+                ("ALTER TABLE documents ADD COLUMN chapter_marker TEXT NOT NULL DEFAULT ''", "chapter_marker"),
+                ("ALTER TABLE documents ADD COLUMN chapter_number INTEGER NOT NULL DEFAULT 0", "chapter_number"),
+                ("ALTER TABLE documents ADD COLUMN chapter_title TEXT", "chapter_title"),
+            ):
+                if column not in document_columns:
+                    self._connection.execute(statement)
+
+            sentence_columns = {
+                row["name"] for row in self._connection.execute("PRAGMA table_info(sentences)").fetchall()
+            }
+            for statement, column in (
+                ("ALTER TABLE sentences ADD COLUMN chapter_number INTEGER NOT NULL DEFAULT 0", "chapter_number"),
+                ("ALTER TABLE sentences ADD COLUMN chapter_title TEXT", "chapter_title"),
+            ):
+                if column not in sentence_columns:
+                    self._connection.execute(statement)
             self._connection.commit()
 
 

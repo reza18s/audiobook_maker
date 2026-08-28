@@ -20,6 +20,9 @@ export type Document = {
   persisted_sentences: number;
   checkpoint_offset: number;
   checkpoint_page: number;
+  chapter_marker: string;
+  chapter_number: number;
+  chapter_title: string | null;
   error: string | null;
 };
 
@@ -30,6 +33,8 @@ export type Sentence = {
   text: string;
   page_number: number;
   source_offset: number;
+  chapter_number: number;
+  chapter_title: string | null;
   speaker_id: string | null;
   status: string;
   audio_path: string | null;

@@ -69,6 +69,28 @@ class DocumentIngestionTests(unittest.TestCase):
         sentences = self.store.list_sentences(self.project["id"], limit=10)
         self.assertEqual([item["text"] for item in sentences], ["One.", "Two."])
 
+    def test_chapters_use_headings_end_markers_and_custom_markers(self):
+        source = self.root / "chapters.txt"
+        source.write_text(
+            "Chapter 1\nOpening scene.\n--- CHAPTER END ---\nSecond scene.\n[BREAK]\nFinal scene.",
+            encoding="utf-8",
+        )
+        document = self.store.create_document(
+            self.project["id"], source.name, str(source), "txt", chapter_marker="[BREAK]"
+        )
+
+        result = DocumentIngestor(self.store).ingest(document["id"], chunk_size=7)
+
+        sentences = self.store.list_sentences(self.project["id"], limit=10)
+        self.assertEqual([item["text"] for item in sentences], [
+            "Opening scene.", "Second scene.", "Final scene."
+        ])
+        self.assertEqual(
+            [(item["chapter_number"], item["chapter_title"]) for item in sentences],
+            [(1, "1"), (2, None), (3, None)],
+        )
+        self.assertEqual((result["chapter_number"], result["chapter_title"]), (3, None))
+
 
 if __name__ == "__main__":
     unittest.main()
