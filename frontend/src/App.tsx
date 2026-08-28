@@ -49,7 +49,8 @@ function ConnectedApp({ client, project, setProject, tab, setTab, view, setView,
   const openHome = () => { setProject(null); setView("home"); };
   const openProject = (next: Project) => { setProject(next); setTab("documents"); setView("project"); };
   const openSettings = (section: SettingsTab = "engines") => { setSettingsTab(section); setView("settings"); };
-  return <div className="app-shell"><WorkspaceSidebar projects={projects.data ?? []} project={project} view={view} tab={tab} onHome={openHome} onProject={openProject} onTab={(next) => { setTab(next); setView(next === "health" ? "health" : "project"); }} onSettings={openSettings} onDisconnect={onDisconnect} /><div className="app-main"><header className="topbar"><div><div className="eyebrow">AUDIOBOOK MAKER</div><strong>{view === "home" ? "Your projects" : view === "settings" ? "Settings" : view === "health" ? "Server health" : project?.name ?? "Project"}</strong></div><div className="topbar-actions"><span className="connection-status"><span className="status-dot" /> Gateway connected</span><button className="ghost" onClick={onDisconnect}>Disconnect</button></div></header><main className="content">{view === "home" && <HomeView projects={projects.data ?? []} onSelect={openProject} onCreate={(name) => createProject.mutate(name)} />}{view === "settings" && <SettingsView client={client} capabilities={capabilities.data ?? []} section={settingsTab} onSection={setSettingsTab} onBack={openHome} onDisconnect={onDisconnect} />}{view === "health" && <HealthView client={client} />}{view === "project" && project && <ProjectWorkspace client={client} project={project} tab={tab} capabilities={capabilities.data ?? []} />}</main></div></div>;
+  const sentenceView = view === "project" && tab === "sentences";
+  return <div className="app-shell"><WorkspaceSidebar projects={projects.data ?? []} project={project} view={view} tab={tab} onHome={openHome} onProject={openProject} onTab={(next) => { setTab(next); setView(next === "health" ? "health" : "project"); }} onSettings={openSettings} onDisconnect={onDisconnect} /><div className="app-main"><header className="topbar"><div><div className="eyebrow">AUDIOBOOK MAKER</div><strong>{view === "home" ? "Your projects" : view === "settings" ? "Settings" : view === "health" ? "Server health" : project?.name ?? "Project"}</strong></div><div className="topbar-actions"><span className="connection-status"><span className="status-dot" /> Gateway connected</span><button className="ghost" onClick={onDisconnect}>Disconnect</button></div></header><main className={`content ${sentenceView ? "sentence-content" : ""}`}>{view === "home" && <HomeView projects={projects.data ?? []} onSelect={openProject} onCreate={(name) => createProject.mutate(name)} />}{view === "settings" && <SettingsView client={client} capabilities={capabilities.data ?? []} section={settingsTab} onSection={setSettingsTab} onBack={openHome} onDisconnect={onDisconnect} />}{view === "health" && <HealthView client={client} />}{view === "project" && project && <ProjectWorkspace client={client} project={project} tab={tab} capabilities={capabilities.data ?? []} />}</main></div></div>;
 }
 
 function WorkspaceSidebar({ projects, project, view, tab, onHome, onProject, onTab, onSettings, onDisconnect }: { projects: Project[]; project: Project | null; view: AppView; tab: Tab; onHome: () => void; onProject: (project: Project) => void; onTab: (tab: Tab) => void; onSettings: (section?: SettingsTab) => void; onDisconnect: () => void }) {
@@ -57,7 +58,7 @@ function WorkspaceSidebar({ projects, project, view, tab, onHome, onProject, onT
 }
 
 function ProjectWorkspace({ client, project, tab, capabilities }: { client: ApiClient; project: Project; tab: Tab; capabilities: Capability[] }) {
-  return <>{tab === "documents" && <DocumentsView client={client} project={project} />}{tab === "sentences" && <SentencesView client={client} project={project} />}{tab === "speakers" && <SpeakersView client={client} project={project} capabilities={capabilities} />}{tab === "queue" && <QueueView client={client} />}{tab === "export" && <ExportView client={client} project={project} />}</>;
+  return <>{tab === "documents" && <DocumentsView client={client} project={project} />}{tab === "sentences" && <SentencesView client={client} project={project} capabilities={capabilities} />}{tab === "speakers" && <SpeakersView client={client} project={project} capabilities={capabilities} />}{tab === "queue" && <QueueView client={client} />}{tab === "export" && <ExportView client={client} project={project} />}</>;
 }
 
 function HomeView({ projects, onSelect, onCreate }: { projects: Project[]; onSelect: (project: Project) => void; onCreate: (name: string) => void }) {
@@ -88,17 +89,98 @@ function DocumentsView({ client, project }: { client: ApiClient; project: Projec
   return <section><div className="page-heading"><div><div className="eyebrow">DOCUMENT IMPORT</div><h1>Bring in a book</h1><p className="muted">TXT and selectable-text PDF files are processed incrementally on the server.</p></div><label className="upload-button"><input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onFile(file); }} />Import document</label></div>{upload > 0 && upload < 100 && <div className="progress"><span style={{ width: `${upload}%` }} /></div>}{message && <div className="info-banner">{message}</div>}<div className="document-list">{documents.data?.map((document) => <article className="document-card" key={document.id}><div><strong>{document.filename}</strong><span>{document.kind.toUpperCase()} · {document.persisted_sentences.toLocaleString()} sentences</span></div><span className={`status status-${document.status}`}>{document.status}</span>{document.error && <small className="error-text">{document.error}</small>}</article>)}</div></section>;
 }
 
-function SentencesView({ client, project }: { client: ApiClient; project: Project }) {
+function SentencesView({ client, project, capabilities }: { client: ApiClient; project: Project; capabilities: Capability[] }) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState("");
+  const [engine, setEngine] = useState(capabilities[0]?.id ?? "");
+  const [model, setModel] = useState("");
+  const [voice, setVoice] = useState("");
+  const [settings, setSettings] = useState<Record<string, unknown>>({});
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const page = useQuery({ queryKey: ["sentences", project.id, offset, query], queryFn: () => client.sentences(project.id, { offset, limit: 100, query, status: "", speakerId: "" }), refetchInterval: 2000 });
   const speakers = useQuery({ queryKey: ["speakers", project.id], queryFn: () => client.speakers(project.id) });
   const update = async (id: string, changes: { text?: string; speaker_id?: string | null }) => { await client.updateSentence(id, changes); void queryClient.invalidateQueries({ queryKey: ["sentences", project.id] }); };
   const queue = async () => { if (selected.length) { await client.queueGeneration(project.id, selected); setSelected([]); void queryClient.invalidateQueries({ queryKey: ["jobs"] }); } };
   const items = page.data?.items ?? [];
-  return <section><div className="page-heading"><div><div className="eyebrow">SENTENCE BROWSER</div><h1>{(page.data?.total ?? 0).toLocaleString()} sentences</h1></div><div className="inline-actions"><input value={query} onChange={(event) => { setOffset(0); setQuery(event.target.value); }} placeholder="Filter text…" /><button className="primary" disabled={!selected.length} onClick={() => void queue()}>Generate {selected.length || "selected"}</button></div></div><SentenceTable sentences={items} speakers={speakers.data?.items ?? []} selectedIds={new Set(selected)} onToggle={(id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} loadAudio={(id) => client.audio(id)} onEdit={(sentence, text) => void update(sentence.id, { text })} onSpeaker={(sentence, speaker_id) => void update(sentence.id, { speaker_id: speaker_id || null })} /><div className="pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><span>{offset + 1}–{Math.min(offset + 100, page.data?.total ?? 0)} of {page.data?.total ?? 0}</span><button disabled={offset + 100 >= (page.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next</button></div></section>;
+  const speakerItems = speakers.data?.items ?? [];
+  const profiles = speakers.data?.profiles ?? [];
+  const selectedProfile = profiles.find((profile) => profile.speaker_id === selectedSpeakerId);
+  const selectedCapability = capabilities.find((capability) => capability.id === engine);
+  const models = capabilityModels(selectedCapability);
+
+  useEffect(() => {
+    if (!selectedSpeakerId && speakerItems[0]) setSelectedSpeakerId(speakerItems[0].id);
+  }, [selectedSpeakerId, speakerItems]);
+
+  useEffect(() => {
+    if (!selectedSpeakerId) {
+      setEngine(capabilities[0]?.id ?? "");
+      setModel("");
+      setVoice("");
+      setSettings({});
+      return;
+    }
+    const profile = profiles.find((item) => item.speaker_id === selectedSpeakerId);
+    const profileSettings = parseProfileSettings(profile?.settings);
+    const savedModel = typeof profileSettings.model === "string" ? profileSettings.model : "";
+    delete profileSettings.model;
+    setEngine(profile?.engine_id ?? capabilities[0]?.id ?? "");
+    setModel(savedModel);
+    setVoice(profile?.voice ?? "");
+    setSettings(profileSettings);
+    setSettingsMessage("");
+  }, [selectedSpeakerId, profiles, capabilities]);
+
+  const saveSettings = async () => {
+    if (!selectedSpeakerId || !engine) return;
+    setSavingSettings(true);
+    setSettingsMessage("");
+    const profileSettings = { ...settings, ...(model.trim() ? { model: model.trim() } : {}) };
+    try {
+      await client.updateProfile(selectedSpeakerId, { engine_id: engine, voice, settings: profileSettings });
+      await queryClient.invalidateQueries({ queryKey: ["speakers", project.id] });
+      setSettingsMessage("Saved to this speaker profile.");
+    } catch (cause) {
+      setSettingsMessage(cause instanceof Error ? cause.message : "Could not save settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const selectAll = () => { setSelected(items.map((item) => item.id)); setMoreOpen(false); };
+  const clearSelection = () => { setSelected([]); setMoreOpen(false); };
+  const refresh = () => { void page.refetch(); setMoreOpen(false); };
+  return <section className="sentence-workspace"><div className="sentence-header"><div className="sentence-project-details"><span className="project-avatar large">{project.name.slice(0, 1).toUpperCase()}</span><div><div className="eyebrow">{project.document_count} DOCUMENTS · PROJECT</div><h1>{project.name}</h1><span>{(page.data?.total ?? 0).toLocaleString()} sentences · {speakerItems.length} speakers</span></div></div><div className="sentence-header-actions"><label className="search-field"><span>Search sentences</span><input value={query} onChange={(event) => { setOffset(0); setQuery(event.target.value); }} placeholder="Search sentences…" /></label><div className="action-menu-wrap"><button className="ghost" type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}>More <span className="menu-chevron">⌄</span></button>{moreOpen && <div className="action-menu" role="menu"><button type="button" onClick={selectAll}>Select all on page</button><button type="button" onClick={clearSelection}>Clear selection</button><button type="button" onClick={refresh}>Refresh sentences</button></div>}</div><button className="primary" disabled={!selected.length} onClick={() => void queue()}>Generate {selected.length || "selected"}</button></div></div><div className="sentence-body"><div className="sentence-main"><div className="sentence-summary"><span>{selected.length ? `${selected.length} selected` : "Select sentences to generate"}</span><span>{page.isFetching ? "Updating…" : `Showing ${items.length ? offset + 1 : 0}–${Math.min(offset + 100, page.data?.total ?? 0)}`}</span></div><SentenceTable sentences={items} speakers={speakerItems} selectedIds={new Set(selected)} onToggle={(id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} loadAudio={(id) => client.audio(id)} onEdit={(sentence, text) => void update(sentence.id, { text })} onSpeaker={(sentence, speaker_id) => void update(sentence.id, { speaker_id: speaker_id || null })} /><div className="pagination"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><span>{offset + 1}–{Math.min(offset + 100, page.data?.total ?? 0)} of {page.data?.total ?? 0}</span><button disabled={offset + 100 >= (page.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next</button></div></div><NarrationSettingsPanel speakers={speakerItems} profile={selectedProfile} capabilities={capabilities} selectedSpeakerId={selectedSpeakerId} onSpeaker={setSelectedSpeakerId} engine={engine} onEngine={(next) => { setEngine(next); setModel(""); setSettings({}); }} model={model} models={models} onModel={setModel} voice={voice} onVoice={setVoice} settings={settings} onSettings={setSettings} message={settingsMessage} saving={savingSettings} onSave={() => void saveSettings()} /></div></section>;
+}
+
+function parseProfileSettings(value: string | undefined): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...(parsed as Record<string, unknown>) } : {};
+  } catch {
+    return {};
+  }
+}
+
+function capabilityModels(capability: Capability | undefined): string[] {
+  const parameters = capability?.parameters;
+  if (Array.isArray(parameters)) {
+    const field = parameters.find((item) => String(item.name ?? item.key ?? "").toLowerCase() === "model");
+    return Array.isArray(field?.options) ? field.options.map(String) : [];
+  }
+  const modelOptions = parameters?.model;
+  return Array.isArray(modelOptions) ? modelOptions.map(String) : [];
+}
+
+function NarrationSettingsPanel({ speakers, profile, capabilities, selectedSpeakerId, onSpeaker, engine, onEngine, model, models, onModel, voice, onVoice, settings, onSettings, message, saving, onSave }: { speakers: { id: string; name: string }[]; profile?: { engine_id: string; voice: string; settings: string }; capabilities: Capability[]; selectedSpeakerId: string; onSpeaker: (id: string) => void; engine: string; onEngine: (id: string) => void; model: string; models: string[]; onModel: (model: string) => void; voice: string; onVoice: (voice: string) => void; settings: Record<string, unknown>; onSettings: (settings: Record<string, unknown>) => void; message: string; saving: boolean; onSave: () => void }) {
+  const selectedCapability = capabilities.find((item) => item.id === engine);
+  return <aside className="narration-sidebar"><div className="narration-sidebar-heading"><div><div className="eyebrow">VOICE WORKSPACE</div><h2>Narration settings</h2><p>Configure the profile used for generated audio.</p></div><span className="settings-sliders">☷</span></div>{!speakers.length ? <div className="settings-empty compact-empty"><span className="settings-empty-icon">◌</span><div><strong>No speakers yet</strong><p>Add a speaker before assigning an engine.</p></div></div> : <><label>Speaker<select value={selectedSpeakerId} onChange={(event) => onSpeaker(event.target.value)}>{speakers.map((speaker) => <option value={speaker.id} key={speaker.id}>{speaker.name}</option>)}</select></label><label>Engine<select value={engine} onChange={(event) => onEngine(event.target.value)}><option value="">Select engine</option>{capabilities.map((capability) => <option value={capability.id} key={capability.id}>{capability.display_name}</option>)}</select></label><label>Model{models.length ? <select value={model} onChange={(event) => onModel(event.target.value)}><option value="">Engine default model</option>{models.map((item) => <option value={item} key={item}>{item}</option>)}</select> : <input value={model} onChange={(event) => onModel(event.target.value)} placeholder="Engine default model" />}</label><label>Voice or sample ID<input value={voice} onChange={(event) => onVoice(event.target.value)} placeholder="Optional voice identifier" /></label>{selectedCapability && <CapabilitySettings capability={selectedCapability} settings={settings} onChange={onSettings} />}<div className="settings-sidebar-actions"><button className="primary wide" disabled={!engine || saving} onClick={onSave}>{saving ? "Saving…" : "Save settings"}</button>{message && <span className={message.startsWith("Saved") ? "settings-success" : "error-text"}>{message}</span>}</div><div className="settings-note"><span>i</span><p>{profile ? "Changes apply to this speaker's future narration jobs." : "This speaker does not have a saved profile yet."}</p></div></>}</aside>;
 }
 
 function SpeakersView({ client, project, capabilities }: { client: ApiClient; project: Project; capabilities: Capability[] }) {
