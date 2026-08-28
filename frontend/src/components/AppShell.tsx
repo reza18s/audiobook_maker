@@ -19,8 +19,7 @@ function routeState(pathname: string): RouteState {
   if (settingsMatch) return { view: "settings", tab: "documents", projectId: null, settingsTab: settingsMatch.params.section === "app" ? "app" : "engines" };
   const projectMatch = matchPath({ path: "/projects/:projectId/:tab", end: true }, pathname) ?? matchPath({ path: "/project/:projectId/:tab", end: true }, pathname);
   if (projectMatch) {
-    const requestedTab = projectMatch.params.tab as Exclude<Tab, "health">;
-    return { view: "project", tab: projectTabs.includes(requestedTab) ? requestedTab : "documents", projectId: projectMatch.params.projectId ?? null, settingsTab: "engines" };
+    return { view: "project", tab: projectMatch.params.tab as Tab, projectId: projectMatch.params.projectId ?? null, settingsTab: "engines" };
   }
   return { view: "home", tab: "documents", projectId: null, settingsTab: "engines" };
 }
@@ -48,6 +47,7 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const projects = useQuery({ queryKey: ["projects"], queryFn: () => client.projects() });
   const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: () => client.capabilities() });
   const project = projects.data?.find((item) => item.id === route.projectId) ?? null;
+  const projectTabIsValid = route.view !== "project" || projectTabs.includes(route.tab as Exclude<Tab, "health">);
   const sentencePage = useQuery({ queryKey: ["sentences", project?.id ?? "", sentenceOffset, sentenceQuery], queryFn: () => client.sentences(project!.id, { offset: sentenceOffset, limit: 100, query: sentenceQuery, status: "", speakerId: "" }), enabled: sentenceView && Boolean(project), refetchInterval: sentenceView ? 2000 : false });
   const sentenceSpeakers = useQuery({ queryKey: ["speakers", project?.id ?? ""], queryFn: () => client.speakers(project!.id), enabled: sentenceView && Boolean(project) });
 
@@ -76,12 +76,14 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const openHome = () => resetAndNavigate("/home");
   const openProject = (next: Project) => resetAndNavigate(`/projects/${encodeURIComponent(next.id)}/documents`);
   const openSettings = (section: SettingsTab = "engines") => navigate(`/settings/${section}`);
-  const createProject = useMutation({ mutationFn: (name: string) => client.createProject(name), onSuccess: (created) => { void queryClient.invalidateQueries({ queryKey: ["projects"] }); resetAndNavigate(`/projects/${encodeURIComponent(created.id)}/documents`); } });
+  const createProject = useMutation({ mutationFn: (name: string) => client.createProject(name), onSuccess: (created) => { queryClient.setQueryData<Project[]>(["projects"], (current) => current ? [created, ...current] : [created]); void queryClient.invalidateQueries({ queryKey: ["projects"] }); resetAndNavigate(`/projects/${encodeURIComponent(created.id)}/documents`); } });
+  const queueGeneration = useMutation({ mutationFn: ({ projectId, sentenceIds }: { projectId: string; sentenceIds: string[] }) => client.queueGeneration(projectId, sentenceIds), onSuccess: (_result, variables) => { setSentenceSelected([]); void queryClient.invalidateQueries({ queryKey: ["jobs"] }); void queryClient.invalidateQueries({ queryKey: ["sentences", variables.projectId] }); } });
 
   if (projects.isLoading) return <div className="loading">Loading projects…</div>;
   if (projects.isError) return <div className="loading"><div className="error-banner">{(projects.error as Error).message}</div><button type="button" onClick={onDisconnect}>Back to connection</button></div>;
+  if (route.view === "project" && (!project || !projectTabIsValid)) return <div className="loading"><div className="error-banner">That project page could not be found.</div><button type="button" onClick={openHome}>Back to projects</button></div>;
   const sentenceItems = sentencePage.data?.items ?? [];
-  const queueSelectedSentences = async () => { if (!project || !sentenceSelected.length) return; await client.queueGeneration(project.id, sentenceSelected); setSentenceSelected([]); void queryClient.invalidateQueries({ queryKey: ["jobs"] }); void queryClient.invalidateQueries({ queryKey: ["sentences", project.id] }); };
+  const queueSelectedSentences = () => { if (!project || !sentenceSelected.length) return; queueGeneration.mutate({ projectId: project.id, sentenceIds: sentenceSelected }); };
   const selectAllSentences = () => { setSentenceSelected(sentenceItems.map((item) => item.id)); setSentenceMoreOpen(false); };
   const clearSentenceSelection = () => { setSentenceSelected([]); setSentenceMoreOpen(false); };
   const refreshSentences = () => { void sentencePage.refetch(); setSentenceMoreOpen(false); };

@@ -1,4 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { Sentence, Speaker } from "./types";
 
@@ -66,8 +67,14 @@ export function SentenceTable({ sentences, speakers, selectedIds, onToggle, load
 }
 
 function AudioPreview({ sentenceId, loadAudio }: { sentenceId: string; loadAudio: (sentenceId: string) => Promise<Blob> }) {
+  const audio = useQuery({ queryKey: ["sentence-audio", sentenceId], queryFn: () => loadAudio(sentenceId), enabled: false, staleTime: Infinity });
   const [url, setUrl] = useState("");
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
-  if (!url) return <button className="ghost listen-button" onClick={() => void loadAudio(sentenceId).then((blob) => setUrl(URL.createObjectURL(blob)))}>Listen</button>;
+  useEffect(() => {
+    if (!audio.data) return;
+    const nextUrl = URL.createObjectURL(audio.data);
+    setUrl(nextUrl);
+    return () => URL.revokeObjectURL(nextUrl);
+  }, [audio.data]);
+  if (!url) return <button className="ghost listen-button" disabled={audio.isFetching} onClick={() => void audio.refetch()}>{audio.isFetching ? "Loading…" : "Listen"}</button>;
   return <audio controls preload="none" src={url} />;
 }
