@@ -1,32 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ApiClient } from "./api";
 import { AppShell } from "./components/AppShell";
 import { loadToken, saveToken } from "./secureToken";
-import type { AppView, SettingsTab, Tab } from "./app-types";
-import type { Project } from "./types";
+import { useAppStore } from "./store";
 import "./styles.css";
 
 export default function App() {
-  const [baseUrl, setBaseUrl] = useState("http://localhost:8000");
-  const [token, setToken] = useState("");
-  const [client, setClient] = useState<ApiClient | null>(null);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [tab, setTab] = useState<Tab>("documents");
-  const [view, setView] = useState<AppView>("home");
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("engines");
-  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const baseUrl = useAppStore((state) => state.baseUrl);
+  const token = useAppStore((state) => state.token);
+  const client = useAppStore((state) => state.client);
+  const error = useAppStore((state) => state.connectionError);
+  const setBaseUrl = useAppStore((state) => state.setBaseUrl);
+  const setToken = useAppStore((state) => state.setToken);
+  const setClient = useAppStore((state) => state.setClient);
+  const setError = useAppStore((state) => state.setConnectionError);
+  const disconnect = useAppStore((state) => state.disconnect);
 
-  useEffect(() => { void loadToken().then(setToken); }, []);
+  useEffect(() => { void loadToken().then(setToken); }, [setToken]);
 
   const connect = async () => {
     setError("");
     const next = new ApiClient(baseUrl, token.trim());
-    try { await next.health(); await saveToken(token.trim()); setSelectedProject(null); setView("home"); setClient(next); }
+    try { await next.health(); await saveToken(token.trim()); setClient(next); navigate("/home", { replace: true }); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Connection failed"); }
   };
 
   if (!client) return <ConnectionScreen baseUrl={baseUrl} token={token} error={error} onUrl={setBaseUrl} onToken={setToken} onConnect={connect} />;
-  return <AppShell client={client} project={selectedProject} setProject={setSelectedProject} tab={tab} setTab={setTab} view={view} setView={setView} settingsTab={settingsTab} setSettingsTab={setSettingsTab} onDisconnect={() => setClient(null)} />;
+  const shell = <AppShell client={client} onDisconnect={() => { disconnect(); navigate("/home", { replace: true }); }} />;
+  return <Routes>
+    <Route path="/" element={<Navigate to="/home" replace />} />
+    <Route path="/home" element={shell} />
+    <Route path="/health" element={shell} />
+    <Route path="/settings" element={<Navigate to="/settings/engines" replace />} />
+    <Route path="/settings/:section" element={shell} />
+    <Route path="/projects/:projectId" element={<Navigate to="documents" replace />} />
+    <Route path="/projects/:projectId/:tab" element={shell} />
+    <Route path="/project/:projectId/:tab" element={shell} />
+    <Route path="*" element={<Navigate to="/home" replace />} />
+  </Routes>;
 }
 
 function ConnectionScreen({ baseUrl, token, error, onUrl, onToken, onConnect }: { baseUrl: string; token: string; error: string; onUrl: (value: string) => void; onToken: (value: string) => void; onConnect: () => void }) {
