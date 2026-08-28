@@ -15,6 +15,9 @@
   --color-accent: #8ee6c6;
   --color-accent-strong: #b0f1d9;
   --color-accent-ink: #0d171b;
+  --color-success: #8ee6c6;
+  --color-warning: #ffd58a;
+  --color-info: #aab9ff;
   --color-danger-background: #3b252a;
   --color-danger-text: #ffb0b0;
 
@@ -39,9 +42,15 @@
   --radius-lg: 12px;
   --radius-xl: 20px;
 
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 17px;
+  --leading-normal: 1.5;
+
   --control-height-sm: 32px;
   --control-height: 38px;
   --control-height-lg: 44px;
   --shadow-card: 0 24px 80px #0006;
+  --shadow-drawer: 20px 0 45px #0006;
   --shadow-menu: 0 18px 35px #0005;
 }
