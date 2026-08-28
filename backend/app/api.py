@@ -18,6 +18,15 @@ from .media import MediaExportService
 from .queue import QueueError, SQLiteQueue
 
 
+try:
+    from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile, WebSocket
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse
+except ImportError:  # pragma: no cover - depends on optional deployment extras
+    BackgroundTasks = Depends = FastAPI = File = Header = HTTPException = UploadFile = WebSocket = None
+    CORSMiddleware = FileResponse = None
+
+
 class ApiConfigurationError(ValueError):
     """The HTTP gateway is missing required deployment configuration."""
 
@@ -31,16 +40,12 @@ def create_app(
 ):
     """Create the versioned API application.
 
-    FastAPI is imported lazily so the standard-library contracts and queue can
-    still be used by local tests without installing the HTTP deployment extras.
+    FastAPI remains optional at module import time so the standard-library
+    contracts and queue can still be used without the HTTP deployment extras.
     """
 
-    try:
-        from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, UploadFile, WebSocket
-        from fastapi.middleware.cors import CORSMiddleware
-        from fastapi.responses import FileResponse
-    except ImportError as error:  # pragma: no cover - depends on optional deployment extras
-        raise ApiConfigurationError("FastAPI extras are required to run the gateway") from error
+    if FastAPI is None:
+        raise ApiConfigurationError("FastAPI extras are required to run the gateway")
 
     expected_token = api_token or os.environ.get("AUDIOBOOK_API_TOKEN")
     if not expected_token:

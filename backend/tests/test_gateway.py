@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from backend.app.contracts import (
     DependencyKind,
@@ -8,6 +10,7 @@ from backend.app.contracts import (
     GenerateRequest,
     JobStatus,
 )
+from backend.app.api import FastAPI, create_app
 from backend.app.gateway import Gateway
 
 
@@ -49,6 +52,26 @@ class GatewayTests(unittest.TestCase):
         self.gateway.submit(GenerateRequest("job-3", "f5tts", "Hello"))
         cancelled = self.gateway.cancel("job-3")
         self.assertEqual(cancelled.status, JobStatus.CANCELLED)
+
+    @unittest.skipIf(FastAPI is None, "FastAPI deployment extras are not installed")
+    def test_fastapi_app_registers_multipart_upload_route(self):
+        with TemporaryDirectory() as temporary_directory:
+            app = create_app(
+                database_path=Path(temporary_directory) / "audiobook.sqlite3",
+                storage_root=Path(temporary_directory) / "projects",
+                api_token="test-token",
+                capabilities=[],
+            )
+            try:
+                upload_routes = {
+                    (route.path, method)
+                    for route in app.routes
+                    for method in getattr(route, "methods", set())
+                }
+                self.assertIn(("/v1/projects/{project_id}/documents", "POST"), upload_routes)
+            finally:
+                app.state.queue.close()
+                app.state.store.close()
 
 
 if __name__ == "__main__":
