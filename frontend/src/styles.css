@@ -60,6 +60,8 @@ textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
 .topbar-actions select { width: 220px; }
 .sidebar-toggle { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sidebar-toggle > span:first-child { color: #8ee6c6; font-size: 21px; line-height: 12px; }
+.sidebar-control-dock { position: fixed; right: 24px; bottom: 24px; z-index: 15; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #334354; border-radius: 12px; background: #131c27ee; box-shadow: var(--shadow-menu); backdrop-filter: blur(10px); }
+.sidebar-control-dock .sidebar-toggle { min-height: var(--control-height-sm); }
 .tabs { display: flex; gap: 5px; padding: 12px 32px 0; border-bottom: 1px solid #283746; }
 .tab { min-height: var(--control-height); display: inline-flex; align-items: center; border: 0; border-bottom: 2px solid transparent; padding: 0 14px; color: #8594a3; background: transparent; }
 .tab.active { color: #edf2f7; border-color: #8ee6c6; }
@@ -345,4 +347,5 @@ textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
   .sentence-body.narration-sidebar-closed { grid-template-columns: minmax(0, 1fr); }
   .table-shell { min-height: 320px; }
   .sentence-main .table-shell { overflow-x: auto; }
+  .sidebar-control-dock { right: 12px; bottom: 12px; padding: 6px; }
 }
