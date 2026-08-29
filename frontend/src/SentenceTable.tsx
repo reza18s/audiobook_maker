@@ -2,6 +2,11 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { Sentence, Speaker } from "./types";
+import { Button } from "./shared/ui/Button";
+import { Checkbox } from "./shared/ui/Checkbox";
+import { Select } from "./shared/ui/Select";
+import { StatusBadge } from "./shared/ui/StatusBadge";
+import { Textarea } from "./shared/ui/Textarea";
 
 type Props = {
   sentences: Sentence[];
@@ -50,13 +55,13 @@ export function SentenceTable({ sentences, speakers, selectedIds, onToggle, load
           const sentence = row.sentence;
           return (
             <div className="sentence-row" key={sentence.id} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}>
-              <label className="row-select"><input type="checkbox" checked={selectedIds.has(sentence.id)} onChange={() => onToggle(sentence.id)} /><span className="sequence">{sentence.sequence + 1}</span></label>
-              <textarea defaultValue={sentence.text} onBlur={(event) => event.currentTarget.value !== sentence.text && onEdit(sentence, event.currentTarget.value)} />
-              <select value={sentence.speaker_id ?? ""} onChange={(event) => onSpeaker(sentence, event.target.value)}>
+              <label className="row-select"><Checkbox checked={selectedIds.has(sentence.id)} onChange={() => onToggle(sentence.id)} aria-label={`Select sentence ${sentence.sequence + 1}`} /><span className="sequence">{sentence.sequence + 1}</span></label>
+              <Textarea defaultValue={sentence.text} onBlur={(event) => event.currentTarget.value !== sentence.text && onEdit(sentence, event.currentTarget.value)} />
+              <Select value={sentence.speaker_id ?? ""} onChange={(event) => onSpeaker(sentence, event.target.value)}>
                 <option value="">Unassigned</option>
                 {speakers.map((speaker) => <option value={speaker.id} key={speaker.id}>{speaker.name}</option>)}
-              </select>
-              <span className={`status status-${sentence.status}`}>{sentence.status}</span>
+              </Select>
+              <StatusBadge status={sentence.status}>{sentence.status}</StatusBadge>
               <AudioPreview sentenceId={sentence.id} loadAudio={loadAudio} />
             </div>
           );
@@ -75,6 +80,6 @@ function AudioPreview({ sentenceId, loadAudio }: { sentenceId: string; loadAudio
     setUrl(nextUrl);
     return () => URL.revokeObjectURL(nextUrl);
   }, [audio.data]);
-  if (!url) return <button className="ghost listen-button" disabled={audio.isFetching} onClick={() => void audio.refetch()}>{audio.isFetching ? "Loading…" : "Listen"}</button>;
+  if (!url) return <Button variant="ghost" size="sm" className="listen-button" disabled={audio.isFetching} onClick={() => void audio.refetch()}>{audio.isFetching ? "Loading…" : "Listen"}</Button>;
   return <audio controls preload="none" src={url} />;
 }

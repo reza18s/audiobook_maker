@@ -91,6 +91,41 @@ class DocumentIngestionTests(unittest.TestCase):
         )
         self.assertEqual((result["chapter_number"], result["chapter_title"]), (3, None))
 
+    def test_chapter_listing_and_project_document_updates(self):
+        source = self.root / "editable.txt"
+        source.write_text(
+            "Chapter One\nOpening scene.\n--- CHAPTER END ---\nClosing scene.",
+            encoding="utf-8",
+        )
+        document = self.store.create_document(
+            self.project["id"], source.name, str(source), "txt", total_bytes=source.stat().st_size
+        )
+        DocumentIngestor(self.store).ingest(document["id"])
+
+        chapters = self.store.list_chapters(self.project["id"])
+        self.assertEqual([chapter["number"] for chapter in chapters], [1, 2])
+        self.assertEqual(chapters[0]["sentence_count"], 1)
+        chapter_sentences = self.store.list_sentences(
+            self.project["id"], document_id=document["id"], chapter_number=2
+        )
+        self.assertEqual([item["text"] for item in chapter_sentences], ["Closing scene."])
+
+        renamed = self.store.update_project(self.project["id"], name="Renamed book")
+        self.assertEqual(renamed["name"], "Renamed book")
+        edited = self.store.update_document(
+            document["id"], filename="renamed.txt", chapter_marker="[BREAK]", reprocess=True
+        )
+        self.assertEqual(edited["filename"], "renamed.txt")
+        self.assertEqual(edited["status"], "pending")
+        self.assertEqual(self.store.count_sentences(self.project["id"]), 0)
+
+        self.store.delete_document(document["id"])
+        with self.assertRaisesRegex(ValueError, "unknown document"):
+            self.store.get_document(document["id"])
+        self.store.delete_project(self.project["id"])
+        with self.assertRaisesRegex(ValueError, "unknown project"):
+            self.store.get_project(self.project["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
+import { Input } from "./Input";
 
 export type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "onChange" | "value" | "aria-describedby"> & {
   label: ReactNode;
@@ -31,7 +32,7 @@ export function TextField({
   return (
     <label className="field" htmlFor={fieldId}>
       <span>{label}</span>
-      <input
+      <Input
         {...props}
         name={name}
         id={fieldId}

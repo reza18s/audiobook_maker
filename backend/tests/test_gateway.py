@@ -69,6 +69,11 @@ class GatewayTests(unittest.TestCase):
                     for method in getattr(route, "methods", set())
                 }
                 self.assertIn(("/v1/projects/{project_id}/documents", "POST"), upload_routes)
+                self.assertIn(("/v1/projects/{project_id}", "PATCH"), upload_routes)
+                self.assertIn(("/v1/projects/{project_id}", "DELETE"), upload_routes)
+                self.assertIn(("/v1/documents/{document_id}", "PATCH"), upload_routes)
+                self.assertIn(("/v1/documents/{document_id}", "DELETE"), upload_routes)
+                self.assertIn(("/v1/projects/{project_id}/chapters", "GET"), upload_routes)
             finally:
                 app.state.queue.close()
                 app.state.store.close()

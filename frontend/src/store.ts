@@ -10,7 +10,7 @@ type AppStore = {
   settingsSidebarOpen: boolean;
   narrationSidebarOpen: boolean;
   sentenceQuery: string;
-  sentenceOffset: number;
+  sentenceChapterIndex: number;
   sentenceSelected: string[];
   sentenceMoreOpen: boolean;
   setBaseUrl: (baseUrl: string) => void;
@@ -21,7 +21,7 @@ type AppStore = {
   setSettingsSidebarOpen: (open: boolean | ((current: boolean) => boolean)) => void;
   setNarrationSidebarOpen: (open: boolean | ((current: boolean) => boolean)) => void;
   setSentenceQuery: (sentenceQuery: string) => void;
-  setSentenceOffset: (sentenceOffset: number) => void;
+  setSentenceChapterIndex: (sentenceChapterIndex: number) => void;
   setSentenceSelected: (sentenceSelected: string[] | ((current: string[]) => string[])) => void;
   setSentenceMoreOpen: (sentenceMoreOpen: boolean | ((current: boolean) => boolean)) => void;
   resetSentenceState: () => void;
@@ -43,7 +43,7 @@ export const useAppStore = create<AppStore>((set) => ({
   settingsSidebarOpen: true,
   narrationSidebarOpen: true,
   sentenceQuery: "",
-  sentenceOffset: 0,
+  sentenceChapterIndex: 0,
   sentenceSelected: [],
   sentenceMoreOpen: false,
   setBaseUrl: (baseUrl) => set({ baseUrl }),
@@ -53,10 +53,10 @@ export const useAppStore = create<AppStore>((set) => ({
   setWorkspaceSidebarOpen: (open) => set((state) => ({ workspaceSidebarOpen: resolveBoolean(open, state.workspaceSidebarOpen) })),
   setSettingsSidebarOpen: (open) => set((state) => ({ settingsSidebarOpen: resolveBoolean(open, state.settingsSidebarOpen) })),
   setNarrationSidebarOpen: (open) => set((state) => ({ narrationSidebarOpen: resolveBoolean(open, state.narrationSidebarOpen) })),
-  setSentenceQuery: (sentenceQuery) => set({ sentenceQuery, sentenceOffset: 0 }),
-  setSentenceOffset: (sentenceOffset) => set({ sentenceOffset }),
+  setSentenceQuery: (sentenceQuery) => set({ sentenceQuery, sentenceChapterIndex: 0 }),
+  setSentenceChapterIndex: (sentenceChapterIndex) => set({ sentenceChapterIndex }),
   setSentenceSelected: (sentenceSelected) => set((state) => ({ sentenceSelected: resolveList(sentenceSelected, state.sentenceSelected) })),
   setSentenceMoreOpen: (sentenceMoreOpen) => set((state) => ({ sentenceMoreOpen: resolveBoolean(sentenceMoreOpen, state.sentenceMoreOpen) })),
-  resetSentenceState: () => set({ sentenceQuery: "", sentenceOffset: 0, sentenceSelected: [], sentenceMoreOpen: false }),
+  resetSentenceState: () => set({ sentenceQuery: "", sentenceChapterIndex: 0, sentenceSelected: [], sentenceMoreOpen: false }),
   disconnect: () => set({ client: null, connectionError: "" }),
 }));

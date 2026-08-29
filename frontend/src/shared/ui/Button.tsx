@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { cn } from "./cn";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
@@ -8,10 +9,6 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "default" | "sm" | "lg" | "icon";
   variant?: "default" | "destructive" | "ghost" | "link" | "outline" | "primary" | "secondary";
 };
-
-function joinClasses(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   children,
@@ -25,11 +22,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   variant = "default",
   ...props
 }, ref) {
-  // The project stylesheet currently defines `primary` and `ghost`; the
-  // additional names keep the API shadcn-compatible without requiring CSS
-  // or Tailwind changes.
-  const styleVariant = variant === "default" || variant === "primary" ? "primary" : "ghost";
-  const classes = joinClasses(
+  const styleVariant = variant === "default" || variant === "primary"
+    ? "primary"
+    : variant === "destructive"
+      ? "destructive"
+      : variant === "secondary"
+        ? "secondary"
+        : "ghost";
+  const classes = cn(
+    "button",
     styleVariant,
     `button-${variant}`,
     `button-size-${size}`,

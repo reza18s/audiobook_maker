@@ -1,5 +1,6 @@
 import type {
   Capability,
+  Chapter,
   Document,
   EngineProfile,
   ExportRecord,
@@ -44,9 +45,27 @@ export class ApiClient {
   capabilities() { return this.request<Capability[]>("/v1/capabilities"); }
   projects() { return this.request<Project[]>("/v1/projects"); }
   createProject(name: string) { return this.request<Project>("/v1/projects", { method: "POST", body: JSON.stringify({ name }) }); }
+  updateProject(projectId: string, name: string) { return this.request<Project>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ name }) }); }
+  deleteProject(projectId: string) { return this.request<void>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }); }
   documents(projectId: string) { return this.request<Document[]>(`/v1/projects/${projectId}/documents`); }
-  sentences(projectId: string, params: { offset: number; limit: number; query: string; status: string; speakerId: string }) {
-    const search = new URLSearchParams({ offset: String(params.offset), limit: String(params.limit) });
+  updateDocument(documentId: string, payload: { filename: string; chapter_marker: string; reprocess?: boolean }) {
+    return this.request<Document>(`/v1/documents/${encodeURIComponent(documentId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+  }
+  deleteDocument(documentId: string) { return this.request<void>(`/v1/documents/${encodeURIComponent(documentId)}`, { method: "DELETE" }); }
+  chapters(projectId: string, params: { query: string; status?: string; speakerId?: string }) {
+    const search = new URLSearchParams();
+    if (params.query) search.set("query", params.query);
+    if (params.status) search.set("status", params.status);
+    if (params.speakerId) search.set("speaker_id", params.speakerId);
+    const query = search.toString();
+    return this.request<Chapter[]>(`/v1/projects/${projectId}/chapters${query ? `?${query}` : ""}`);
+  }
+  sentences(projectId: string, params: { chapter?: Pick<Chapter, "document_id" | "number">; query: string; status?: string; speakerId?: string }) {
+    const search = new URLSearchParams();
+    if (params.chapter) {
+      search.set("document_id", params.chapter.document_id);
+      search.set("chapter_number", String(params.chapter.number));
+    }
     if (params.query) search.set("query", params.query);
     if (params.status) search.set("status", params.status);
     if (params.speakerId) search.set("speaker_id", params.speakerId);

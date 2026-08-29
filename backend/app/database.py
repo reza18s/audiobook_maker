@@ -51,6 +51,26 @@ class SQLiteStore:
                 raise DatabaseError(f"project already exists: {project_id}") from error
         return self.get_project(project_id)
 
+    def update_project(self, project_id: str, *, name: str) -> dict:
+        clean_name = name.strip()
+        if not clean_name:
+            raise DatabaseError("project name is required")
+        self.get_project(project_id)
+        with self._lock:
+            self._connection.execute(
+                "UPDATE projects SET name = ?, updated_at = ? WHERE id = ?",
+                (clean_name, _timestamp(), project_id),
+            )
+            self._connection.commit()
+        return self.get_project(project_id)
+
+    def delete_project(self, project_id: str) -> dict:
+        project = self.get_project(project_id)
+        with self._lock:
+            self._connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            self._connection.commit()
+        return project
+
     def list_projects(self) -> list[dict]:
         with self._lock:
             rows = self._connection.execute(
@@ -143,12 +163,113 @@ class SQLiteStore:
             ).fetchall()
         return [_row_dict(row) for row in rows]
 
+    def update_document(
+        self,
+        document_id: str,
+        *,
+        filename: str | None = None,
+        chapter_marker: str | None = None,
+        reprocess: bool = False,
+    ) -> dict:
+        document = self.get_document(document_id)
+        clean_filename = document["filename"] if filename is None else filename.strip()
+        if not clean_filename:
+            raise DatabaseError("document filename is required")
+        if Path(clean_filename).name != clean_filename:
+            raise DatabaseError("document filename must be a file name")
+        clean_marker = document["chapter_marker"] if chapter_marker is None else chapter_marker.strip()
+        marker_changed = clean_marker != document["chapter_marker"]
+        if marker_changed and document["status"] == "processing":
+            raise DatabaseError("wait for document processing to finish before changing its chapter marker")
+        if marker_changed and document["persisted_sentences"] and not reprocess:
+            raise DatabaseError("changing a chapter marker requires reprocess=true")
+
+        now = _timestamp()
+        with self._lock:
+            if reprocess:
+                self._connection.execute("DELETE FROM sentences WHERE document_id = ?", (document_id,))
+                self._connection.execute(
+                    """
+                    UPDATE documents SET filename = ?, chapter_marker = ?, status = 'pending',
+                        processed_bytes = 0, processed_pages = 0, persisted_sentences = 0,
+                        checkpoint_offset = 0, checkpoint_page = 0, chapter_number = 0,
+                        chapter_title = NULL, error = NULL, updated_at = ? WHERE id = ?
+                    """,
+                    (clean_filename, clean_marker, now, document_id),
+                )
+            else:
+                self._connection.execute(
+                    "UPDATE documents SET filename = ?, chapter_marker = ?, updated_at = ? WHERE id = ?",
+                    (clean_filename, clean_marker, now, document_id),
+                )
+            self._connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE id = ?", (now, document["project_id"])
+            )
+            self._connection.commit()
+        return self.get_document(document_id)
+
+    def delete_document(self, document_id: str) -> dict:
+        document = self.get_document(document_id)
+        with self._lock:
+            self._connection.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+            self._connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE id = ?",
+                (_timestamp(), document["project_id"]),
+            )
+            self._connection.commit()
+        return document
+
+    def list_document_sentence_ids(self, document_id: str) -> list[str]:
+        self.get_document(document_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id FROM sentences WHERE document_id = ?", (document_id,)
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
     def list_incomplete_documents(self) -> list[dict]:
         with self._lock:
             rows = self._connection.execute(
                 "SELECT * FROM documents WHERE status IN ('pending', 'processing') ORDER BY created_at, id"
             ).fetchall()
         return [_row_dict(row) for row in rows]
+
+    def list_chapters(
+        self,
+        project_id: str,
+        *,
+        query: str = "",
+        status: str = "",
+        speaker_id: str = "",
+    ) -> list[dict]:
+        self.get_project(project_id)
+        where, params = _sentence_filters(project_id, query, status, speaker_id)
+        with self._lock:
+            rows = self._connection.execute(
+                f"""
+                SELECT d.id AS document_id, d.filename AS document_filename,
+                       d.created_at AS document_created_at, s.chapter_number,
+                       MIN(s.chapter_title) AS chapter_title, COUNT(*) AS sentence_count
+                FROM sentences s
+                JOIN documents d ON d.id = s.document_id
+                WHERE {where}
+                GROUP BY d.id, d.filename, d.created_at, s.chapter_number
+                ORDER BY d.created_at, d.id, s.chapter_number
+                """,
+                params,
+            ).fetchall()
+        chapters = []
+        for row in rows:
+            number = int(row["chapter_number"] or 0)
+            chapters.append({
+                "id": f"{row['document_id']}:{number}",
+                "document_id": row["document_id"],
+                "document_filename": row["document_filename"],
+                "number": number,
+                "title": row["chapter_title"],
+                "sentence_count": int(row["sentence_count"]),
+            })
+        return chapters
 
     def update_document_progress(
         self,
@@ -246,8 +367,19 @@ class SQLiteStore:
             ).fetchone()
         return int(row[0])
 
-    def count_sentences(self, project_id: str, *, query: str = "", status: str = "", speaker_id: str = "") -> int:
-        where, params = _sentence_filters(project_id, query, status, speaker_id)
+    def count_sentences(
+        self,
+        project_id: str,
+        *,
+        query: str = "",
+        status: str = "",
+        speaker_id: str = "",
+        document_id: str = "",
+        chapter_number: int | None = None,
+    ) -> int:
+        where, params = _sentence_filters(
+            project_id, query, status, speaker_id, document_id, chapter_number
+        )
         with self._lock:
             row = self._connection.execute(
                 f"""
@@ -268,10 +400,19 @@ class SQLiteStore:
         query: str = "",
         status: str = "",
         speaker_id: str = "",
+        document_id: str = "",
+        chapter_number: int | None = None,
     ) -> list[dict]:
+        chapter_page = bool(document_id) or chapter_number is not None
+        if chapter_page and (not document_id or chapter_number is None):
+            raise DatabaseError("chapter pagination requires document_id and chapter_number")
         if offset < 0 or limit < 1 or limit > 1000:
             raise DatabaseError("sentence pagination must use offset >= 0 and limit between 1 and 1000")
-        where, params = _sentence_filters(project_id, query, status, speaker_id)
+        where, params = _sentence_filters(
+            project_id, query, status, speaker_id, document_id, chapter_number
+        )
+        page_clause = "" if chapter_page else " LIMIT ? OFFSET ?"
+        page_params = () if chapter_page else (limit, offset)
         with self._lock:
             rows = self._connection.execute(
                 f"""
@@ -280,9 +421,9 @@ class SQLiteStore:
                 JOIN documents d ON d.id = s.document_id
                 WHERE {where}
                 ORDER BY d.created_at, s.sequence, s.id
-                LIMIT ? OFFSET ?
+                {page_clause}
                 """,
-                (*params, limit, offset),
+                (*params, *page_params),
             ).fetchall()
         return [_row_dict(row) for row in rows]
 
@@ -602,9 +743,22 @@ class SQLiteStore:
             self._connection.commit()
 
 
-def _sentence_filters(project_id: str, query: str, status: str, speaker_id: str) -> tuple[str, list[object]]:
+def _sentence_filters(
+    project_id: str,
+    query: str,
+    status: str,
+    speaker_id: str,
+    document_id: str = "",
+    chapter_number: int | None = None,
+) -> tuple[str, list[object]]:
     clauses = ["d.project_id = ?"]
     params: list[object] = [project_id]
+    if document_id:
+        clauses.append("s.document_id = ?")
+        params.append(document_id)
+    if chapter_number is not None:
+        clauses.append("s.chapter_number = ?")
+        params.append(chapter_number)
     if query.strip():
         clauses.append("s.text LIKE ?")
         params.append(f"%{query.strip()}%")

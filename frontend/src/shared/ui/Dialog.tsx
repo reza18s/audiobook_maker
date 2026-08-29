@@ -1,20 +1,19 @@
 import { useEffect, useId, useRef } from "react";
 import type { HTMLAttributes, KeyboardEvent, ReactNode } from "react";
 import { Button } from "./Button";
+import { cn } from "./cn";
 
-export type DrawerCloseReason = "backdrop" | "close-button" | "escape";
+export type DialogCloseReason = "backdrop" | "close-button" | "escape";
 
-export type DrawerProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
+export type DialogProps = Omit<HTMLAttributes<HTMLDivElement>, "title"> & {
   children: ReactNode;
   closeLabel?: string;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   description?: ReactNode;
   disabled?: boolean;
-  loading?: boolean;
-  loadingLabel?: string;
-  modal?: boolean;
-  onClose: (reason: DrawerCloseReason) => void;
+  footer?: ReactNode;
+  onClose: (reason: DialogCloseReason) => void;
   open: boolean;
   title: ReactNode;
 };
@@ -28,30 +27,25 @@ const focusableSelector = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-function joinClasses(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-export function Drawer({
+export function Dialog({
   children,
   className,
-  closeLabel = "Close drawer",
+  closeLabel = "Close dialog",
   closeOnBackdrop = true,
   closeOnEscape = true,
   description,
   disabled = false,
-  loading = false,
-  loadingLabel = "Loading…",
-  modal = true,
+  footer,
   onClose,
   open,
   title,
+  onKeyDown,
   ...props
-}: DrawerProps) {
+}: DialogProps) {
   const generatedId = useId();
-  const titleId = `drawer-${generatedId}-title`;
-  const descriptionId = description ? `drawer-${generatedId}-description` : undefined;
-  const drawerRef = useRef<HTMLElement>(null);
+  const titleId = `dialog-${generatedId}-title`;
+  const descriptionId = description ? `dialog-${generatedId}-description` : undefined;
+  const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -61,41 +55,33 @@ export function Drawer({
 
   useEffect(() => {
     if (!open) return;
-
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    drawerRef.current?.focus();
-    return () => {
-      previousFocusRef.current?.focus();
-    };
+    dialogRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
+    return () => previousFocusRef.current?.focus();
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
-
+    if (!open || !closeOnEscape) return;
     const closeOnKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape" || !closeOnEscape || disabled) return;
+      if (event.key !== "Escape" || disabled) return;
       event.preventDefault();
       onCloseRef.current("escape");
     };
-
     window.addEventListener("keydown", closeOnKeyDown);
     return () => window.removeEventListener("keydown", closeOnKeyDown);
   }, [closeOnEscape, disabled, open]);
 
   if (!open) return null;
 
-  const trapFocus = (event: KeyboardEvent<HTMLElement>) => {
-    props.onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-    if (!modal || event.key !== "Tab") return;
-
-    const focusable = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
+  const trapFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || event.key !== "Tab") return;
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
     if (!focusable.length) {
       event.preventDefault();
-      drawerRef.current?.focus();
+      dialogRef.current?.focus();
       return;
     }
-
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
     if (event.shiftKey && document.activeElement === first) {
@@ -109,45 +95,35 @@ export function Drawer({
 
   return (
     <div
-      className="drawer-backdrop"
+      className="dialog-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && closeOnBackdrop && !disabled) onClose("backdrop");
       }}
     >
-      <aside
+      <div
         {...props}
-        ref={drawerRef}
-        className={joinClasses("narration-sidebar", "drawer", className)}
+        ref={dialogRef}
+        className={cn("dialog", className)}
         role="dialog"
-        aria-modal={modal || undefined}
+        aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        aria-busy={loading || undefined}
-        aria-disabled={disabled || undefined}
+        aria-busy={disabled || undefined}
         tabIndex={-1}
         onKeyDown={trapFocus}
       >
-        <header className="narration-sidebar-heading">
+        <header className="dialog-header">
           <div>
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <Button
-            className="settings-sliders"
-            variant="ghost"
-            size="icon"
-            type="button"
-            aria-label={closeLabel}
-            disabled={disabled}
-            onClick={() => onClose("close-button")}
-          >
+          <Button variant="ghost" size="icon" aria-label={closeLabel} disabled={disabled} onClick={() => onClose("close-button")}>
             <span aria-hidden="true">×</span>
           </Button>
         </header>
-        <div className="drawer-content">
-          {loading ? <div className="muted" role="status">{loadingLabel}</div> : children}
-        </div>
-      </aside>
+        <div className="dialog-content">{children}</div>
+        {footer && <footer className="dialog-footer">{footer}</footer>}
+      </div>
     </div>
   );
 }

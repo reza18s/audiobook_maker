@@ -23,6 +23,15 @@ paths:
       operationId: createProject
       requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProjectInput'}}}}
       responses: {"201": {description: Created}}
+  /v1/projects/{projectId}:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    patch:
+      operationId: updateProject
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ProjectInput'}}}}
+      responses: {"200": {description: Updated}}
+    delete:
+      operationId: deleteProject
+      responses: {"204": {description: Deleted}}
   /v1/projects/{projectId}/documents:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     get:
@@ -32,6 +41,27 @@ paths:
       operationId: uploadDocument
       requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
       responses: {"202": {description: Accepted for incremental ingestion}}
+  /v1/documents/{documentId}:
+    parameters: [{name: documentId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: getDocument
+      responses: {"200": {description: Document details}}
+    patch:
+      operationId: updateDocument
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/DocumentInput'}}}}
+      responses: {"200": {description: Updated document}}
+    delete:
+      operationId: deleteDocument
+      responses: {"204": {description: Deleted}}
+  /v1/projects/{projectId}/chapters:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: listChapters
+      parameters:
+        - {name: query, in: query, schema: {type: string}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: speaker_id, in: query, schema: {type: string}}
+      responses: {"200": {description: Chapters available for chapter-based sentence pagination}}
   /v1/projects/{projectId}/sentences:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     get:
@@ -42,7 +72,9 @@ paths:
         - {name: query, in: query, schema: {type: string}}
         - {name: status, in: query, schema: {type: string}}
         - {name: speaker_id, in: query, schema: {type: string}}
-      responses: {"200": {description: Bounded sentence page}}
+        - {name: document_id, in: query, schema: {type: string}}
+        - {name: chapter_number, in: query, schema: {type: integer, minimum: 0}}
+      responses: {"200": {description: Sentence page or one complete chapter when document_id and chapter_number are provided}}
   /v1/sentences/{sentenceId}:
     parameters: [{name: sentenceId, in: path, required: true, schema: {type: string}}]
     patch:
@@ -122,3 +154,9 @@ components:
       type: object
       required: [name]
       properties: {name: {type: string, minLength: 1}}
+    DocumentInput:
+      type: object
+      properties:
+        filename: {type: string, minLength: 1}
+        chapter_marker: {type: string}
+        reprocess: {type: boolean, description: Rebuild sentences after changing chapter boundaries}

@@ -103,6 +103,29 @@ def create_app(
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def project_volume(project_id: str) -> Path:
+        path = (root / project_id).resolve()
+        if path == root or path.parent != root:
+            raise HTTPException(status_code=400, detail="invalid project path")
+        return path
+
+    def remove_document_files(document: dict, sentence_ids: list[str]) -> None:
+        volume = project_volume(document["project_id"])
+        source_path = Path(document["source_path"]).resolve()
+        try:
+            source_path.relative_to(volume)
+        except ValueError:
+            pass
+        else:
+            source_path.unlink(missing_ok=True)
+        for sentence_id in sentence_ids:
+            audio_path = (volume / "audio" / f"{sentence_id}.wav").resolve()
+            try:
+                audio_path.relative_to(volume)
+            except ValueError:
+                continue
+            audio_path.unlink(missing_ok=True)
+
     def handle_domain_error(error: Exception) -> None:
         if isinstance(error, (DatabaseError, QueueError, IngestionError, ValueError)):
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -126,6 +149,24 @@ def create_app(
     def create_project(payload: dict[str, Any], _: None = Depends(require_token)) -> dict:
         try:
             return store.create_project(str(payload.get("name", "")))
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.patch("/v1/projects/{project_id}")
+    def update_project(project_id: str, payload: dict[str, Any], _: None = Depends(require_token)) -> dict:
+        try:
+            return store.update_project(project_id, name=str(payload.get("name", "")))
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.delete("/v1/projects/{project_id}", status_code=204)
+    def delete_project(project_id: str, _: None = Depends(require_token)) -> None:
+        try:
+            project_volume(project_id)
+            store.delete_project(project_id)
+            shutil.rmtree(project_volume(project_id), ignore_errors=True)
         except Exception as error:
             handle_domain_error(error)
             raise AssertionError("unreachable")
@@ -180,6 +221,60 @@ def create_app(
             handle_domain_error(error)
             raise AssertionError("unreachable")
 
+    @app.patch("/v1/documents/{document_id}")
+    def update_document(
+        document_id: str,
+        payload: dict[str, Any],
+        background_tasks: BackgroundTasks,
+        _: None = Depends(require_token),
+    ) -> dict:
+        try:
+            filename = payload.get("filename")
+            chapter_marker = payload.get("chapter_marker")
+            if filename is not None and not isinstance(filename, str):
+                raise DatabaseError("document filename must be text")
+            if chapter_marker is not None and not isinstance(chapter_marker, str):
+                raise DatabaseError("chapter marker must be text")
+            document = store.get_document(document_id)
+            reprocess = bool(payload.get("reprocess", False))
+            updated = store.update_document(
+                document_id,
+                filename=filename,
+                chapter_marker=chapter_marker,
+                reprocess=reprocess,
+            )
+            if reprocess and document["status"] != "processing":
+                background_tasks.add_task(ingestor.ingest, document_id)
+            return updated
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.delete("/v1/documents/{document_id}", status_code=204)
+    def delete_document(document_id: str, _: None = Depends(require_token)) -> None:
+        try:
+            document = store.get_document(document_id)
+            sentence_ids = store.list_document_sentence_ids(document_id)
+            store.delete_document(document_id)
+            remove_document_files(document, sentence_ids)
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.get("/v1/projects/{project_id}/chapters")
+    def list_chapters(
+        project_id: str,
+        query: str = "",
+        status: str = "",
+        speaker_id: str = "",
+        _: None = Depends(require_token),
+    ) -> list[dict]:
+        try:
+            return store.list_chapters(project_id, query=query, status=status, speaker_id=speaker_id)
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
     @app.get("/v1/projects/{project_id}/sentences")
     def list_sentences(
         project_id: str,
@@ -188,16 +283,33 @@ def create_app(
         query: str = "",
         status: str = "",
         speaker_id: str = "",
+        document_id: str = "",
+        chapter_number: int | None = None,
         _: None = Depends(require_token),
     ) -> dict:
         try:
+            items = store.list_sentences(
+                project_id,
+                offset=offset,
+                limit=limit,
+                query=query,
+                status=status,
+                speaker_id=speaker_id,
+                document_id=document_id,
+                chapter_number=chapter_number,
+            )
             return {
-                "items": store.list_sentences(
-                    project_id, offset=offset, limit=limit, query=query, status=status, speaker_id=speaker_id
+                "items": items,
+                "offset": 0 if chapter_number is not None else offset,
+                "limit": len(items) if chapter_number is not None else limit,
+                "total": store.count_sentences(
+                    project_id,
+                    query=query,
+                    status=status,
+                    speaker_id=speaker_id,
+                    document_id=document_id,
+                    chapter_number=chapter_number,
                 ),
-                "offset": offset,
-                "limit": limit,
-                "total": store.count_sentences(project_id, query=query, status=status, speaker_id=speaker_id),
             }
         except Exception as error:
             handle_domain_error(error)

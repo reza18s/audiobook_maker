@@ -2,19 +2,31 @@
 .field:first-child { margin-top: 0; }
 .field > span:first-child { font-weight: 650; }
 .field input { margin: 0; min-height: var(--control-height-lg); padding: 0 13px; border-color: #3a4e5f; background: #0f1924; }
+.field select, .field textarea { margin: 0; min-height: var(--control-height-lg); border-color: #3a4e5f; background: #0f1924; }
 .field input::placeholder { color: #6f8190; }
+.field select:focus, .field textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px #8ee6c61c; }
 .field input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px #8ee6c61c; }
 .field-help { color: var(--color-muted); font-size: 11px; line-height: 1.4; }
 .connection-card .wide { margin-top: 22px; min-height: var(--control-height-lg); }
 input, select, textarea { width: 100%; color: #edf2f7; background: #101822; border: 1px solid #334354; border-radius: 9px; padding: 10px 12px; outline: none; }
 input:focus, select:focus, textarea:focus { border-color: #8ee6c6; }
 textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
-.primary, .upload-button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-sm); padding: 0 16px; color: #0d171b; background: #8ee6c6; font-weight: 750; line-height: 1.2; white-space: nowrap; }
-.primary:hover, .upload-button:hover { background: #b0f1d9; }
+.button, .primary, .upload-button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-sm); padding: 0 16px; color: #0d171b; background: #8ee6c6; font-weight: 750; line-height: 1.2; white-space: nowrap; }
+.button:hover, .primary:hover, .upload-button:hover { background: #b0f1d9; }
+.button.destructive, .button.button-destructive { color: #fff1f1; background: #9d4f5a; }
+.button.destructive:hover, .button.button-destructive:hover { background: #bd626d; }
+.button.secondary, .button.button-secondary { color: #d7e4ea; background: #2a3c4b; }
+.button.secondary:hover, .button.button-secondary:hover { background: #385364; }
+.button.button-link { min-height: auto; padding: 0; color: #8ee6c6; background: transparent; text-decoration: underline; }
+.button.button-link:hover { color: #b0f1d9; background: transparent; }
 .primary:disabled { opacity: .4; cursor: default; }
+.button:disabled { opacity: .4; cursor: default; }
 .button-size-sm { min-height: var(--control-height-sm); padding: 0 12px; font-size: 12px; }
 .button-size-lg { min-height: var(--control-height-lg); padding: 0 18px; }
 .button-size-icon { width: var(--control-height); min-height: var(--control-height); padding: 0; }
 .wide { width: 100%; margin-top: 24px; }
 .ghost, .pagination button, .loading > button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 1px solid #334354; border-radius: var(--radius-sm); padding: 0 13px; color: #c1ccd7; background: transparent; line-height: 1.2; white-space: nowrap; }
 .ghost:hover, .pagination button:hover, .loading > button:hover { border-color: #8ee6c6; color: #8ee6c6; }
+.button.button-link { min-height: auto; }
+.ui-checkbox { width: 16px; height: 16px; min-height: 16px !important; margin: 0; padding: 0 !important; accent-color: #8ee6c6; }
+.field .ui-checkbox { width: 16px; }

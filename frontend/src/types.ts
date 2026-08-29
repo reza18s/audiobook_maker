@@ -26,6 +26,15 @@ export type Document = {
   error: string | null;
 };
 
+export type Chapter = {
+  id: string;
+  document_id: string;
+  document_filename: string;
+  number: number;
+  title: string | null;
+  sentence_count: number;
+};
+
 export type Sentence = {
   id: string;
   document_id: string;
