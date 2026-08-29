@@ -33,7 +33,7 @@
   .topbar-actions { min-width: 0; }
   .topbar-actions > .connection-status, .topbar-actions > .ghost:not(.sidebar-toggle) { display: none; }
   .app-main, .workspace-nav-collapsed .app-main { margin-left: 0; }
-  .workspace-sidebar, .workspace-nav-collapsed .workspace-sidebar { width: min(var(--workspace-sidebar-width), 86vw); transform: translateX(-100%); padding: 20px 15px 18px; box-shadow: 20px 0 45px #0006; }
+  .workspace-sidebar, .workspace-nav-collapsed .workspace-sidebar { width: min(var(--workspace-sidebar-width), 86vw); transform: translateX(-100%); padding: 20px 15px 18px; box-shadow: var(--shadow-drawer); }
   .app-shell:not(.workspace-nav-collapsed) .workspace-sidebar { transform: translateX(0); }
   .workspace-nav-collapsed .sidebar-brand { position: static; justify-content: initial; padding: 0 10px 26px; }
   .workspace-nav-collapsed .sidebar-collapse-button { position: static; margin-left: auto; }
@@ -59,7 +59,7 @@
   .speaker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-strip { grid-template-columns: 1fr; margin-bottom: 28px; }
   .settings-shell { display: block; min-height: 0; }
-  .settings-sidebar { position: fixed; inset: var(--topbar-height) auto 0 0; z-index: 20; width: min(var(--settings-sidebar-width), 86vw); padding: 18px 0; background: #121b26; box-shadow: 20px 0 45px #0006; }
+  .settings-sidebar { position: fixed; inset: var(--topbar-height) auto 0 0; z-index: var(--z-drawer); width: min(var(--settings-sidebar-width), 86vw); padding: 18px 0; background: var(--color-surface-sidebar); box-shadow: var(--shadow-drawer); }
   .settings-shell.settings-sidebar-closed .settings-sidebar { display: none; }
   .settings-content { padding: 24px 0 40px; }
   .sentence-content { height: calc(100vh - var(--topbar-height)); padding: 0 12px 14px; }
@@ -70,7 +70,7 @@
   .sentence-topbar-actions .sidebar-toggle .toggle-label { display: none; }
   .sentence-content { height: calc(100vh - 132px); }
   .sentence-body { grid-template-columns: minmax(0, 1fr); }
-  .narration-sidebar { position: fixed; inset: var(--topbar-height) 0 0 auto; z-index: 20; width: min(92vw, var(--narration-sidebar-width)); border-radius: 12px 0 0 0; box-shadow: -20px 0 45px #0006; }
+  .narration-sidebar { position: fixed; inset: var(--topbar-height) 0 0 auto; z-index: var(--z-drawer); width: min(92vw, var(--narration-sidebar-width)); border-radius: 12px 0 0 0; box-shadow: var(--shadow-drawer-left); }
   .sentence-body.narration-sidebar-closed { grid-template-columns: minmax(0, 1fr); }
   .table-shell { min-height: 320px; }
   .sentence-main .table-shell { overflow-x: auto; }
