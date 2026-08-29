@@ -1,12 +1,20 @@
 .connection-card .error-banner { margin: 20px 0 0; }
 .button-spinner { width: 14px; height: 14px; margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: button-spin .7s linear infinite; }
 @keyframes button-spin { to { transform: rotate(360deg); } }
+.progress-wrapper { min-width: 0; display: grid; gap: var(--space-2); }
 .progress, .job-progress { overflow: hidden; height: 7px; border-radius: var(--radius-pill); background: var(--color-progress-track); }
 .progress { margin: 8px 0 18px; }
 .progress span, .job-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-progress-fill); transition: width var(--duration-progress) var(--easing-standard); }
+.progress-loading span { animation: progress-indeterminate 1.2s ease-in-out infinite; }
+@keyframes progress-indeterminate { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(185%); } }
+.progress[aria-disabled="true"] { opacity: .55; }
 .info-banner, .error-banner { margin: 15px 0; padding: 12px 14px; border-radius: var(--radius-control); }
 .info-banner { background: var(--color-surface-info); color: var(--color-text-info); }
 .error-banner { background: var(--color-danger-background); color: var(--color-danger-text); }
 .error-text { color: var(--color-danger); }
-.status { white-space: nowrap; font-size: 12px; font-weight: 700; }
-.status-completed, .status-ready { color: var(--color-success); }.status-failed, .status-cancelled { color: var(--color-danger); }.status-running, .status-processing { color: var(--color-warning); }.status-queued, .status-pending, .status-retrying { color: var(--color-info); }
+.status { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 26px; padding: 3px 8px; border: 1px solid var(--color-status-neutral-border); border-radius: var(--radius-pill); color: var(--color-status-neutral-text); background: var(--color-status-neutral-surface); white-space: nowrap; font-size: var(--text-sm); font-weight: var(--weight-bold); line-height: 1.2; }
+.status-completed, .status-ready { border-color: var(--color-status-success-border); color: var(--color-status-success-text); background: var(--color-status-success-surface); }
+.status-failed, .status-cancelled { border-color: var(--color-status-danger-border); color: var(--color-status-danger-text); background: var(--color-status-danger-surface); }
+.status-running, .status-processing, .status-cancelling { border-color: var(--color-status-warning-border); color: var(--color-status-warning-text); background: var(--color-status-warning-surface); }
+.status-queued, .status-pending, .status-retrying { border-color: var(--color-status-info-border); color: var(--color-status-info-text); background: var(--color-status-info-surface); }
+.status > .status-dot { background: currentColor; box-shadow: none; }

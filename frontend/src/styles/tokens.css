@@ -109,8 +109,25 @@
   --color-danger-ink: #fff1f1;
   --color-danger-hover: #bd626d;
 
+  --color-status-neutral-surface: #1e2a37;
+  --color-status-neutral-border: var(--color-border-menu);
+  --color-status-neutral-text: var(--color-text-secondary);
+  --color-status-success-surface: var(--color-surface-success-strong);
+  --color-status-success-border: var(--color-border-info);
+  --color-status-success-text: var(--color-text-info);
+  --color-status-warning-surface: #3b3326;
+  --color-status-warning-border: #6a5a35;
+  --color-status-warning-text: var(--color-warning);
+  --color-status-info-surface: #292d48;
+  --color-status-info-border: #4b558c;
+  --color-status-info-text: var(--color-info);
+  --color-status-danger-surface: var(--color-surface-danger);
+  --color-status-danger-border: var(--color-border-danger);
+  --color-status-danger-text: var(--color-danger);
+
   --color-focus-ring: var(--color-accent);
   --color-focus-glow: #8ee6c61c;
+  --color-danger-focus-glow: #ff9f9f33;
   --color-selection-background: var(--color-surface-accent);
   --color-overlay-background: #071019b8;
   --color-progress-track: #2a3948;
@@ -163,6 +180,7 @@
   --radius-md: 10px;
   --radius-lg: 12px;
   --radius-xl: 20px;
+  --radius-dialog: 16px;
   --radius-pill: 999px;
 
   --control-height-sm: 32px;
@@ -174,6 +192,7 @@
   --easing-standard: ease;
 
   --z-sidebar: 5;
+  --z-menu: 8;
   --z-tooltip: 12;
   --z-control-dock: 15;
   --z-drawer: 20;
