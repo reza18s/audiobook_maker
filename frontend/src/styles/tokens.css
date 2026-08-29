@@ -63,6 +63,17 @@
   --color-text-secondary-bright: #d7e4ea;
   --color-text-brand: #d8e4e9;
   --color-text-active: #eafff7;
+  --color-text-tab: #8594a3;
+  --color-text-section: #647486;
+  --color-text-sidebar-empty: #68798a;
+  --color-text-overview: #8291a0;
+  --color-text-project-meta: #a1afbc;
+  --color-text-speaker-meta: #8fa2b2;
+  --color-text-sentence-meta: #94a5b4;
+  --color-text-menu: #b9c7d3;
+  --color-text-setting: #c4ced8;
+  --color-text-note-icon: #b6c5d2;
+  --color-text-arrow: #7890a0;
   --color-muted: #91a0af;
   --color-muted-strong: #aebaca;
   --color-text-subtle: #718091;
@@ -76,18 +87,24 @@
   --color-text-accent-muted: #82cdb5;
   --color-text-danger-muted: #d9a4a4;
 
+  --color-surface-card-start: #192735;
+  --color-surface-card-end: var(--color-surface);
+  --color-surface-card-hover-start: #1d303b;
+  --color-surface-card-hover-end: #17252f;
+
   --color-accent: #8ee6c6;
   --color-accent-strong: #b0f1d9;
   --color-accent-pressed: #71d4b2;
   --color-accent-ink: #0d171b;
   --color-success: var(--color-accent);
-  --color-success-surface: #203332;
-  --color-success-border: #29443f;
-  --color-success-text: #a4e8d0;
+  --color-success-surface: var(--color-surface-info);
+  --color-success-border: var(--color-border-info);
+  --color-success-text: var(--color-text-info);
+  --color-text-info: #a4e8d0;
   --color-warning: #ffd58a;
   --color-info: #aab9ff;
   --color-danger: #ff9f9f;
-  --color-danger-background: #3b252a;
+  --color-danger-background: var(--color-surface-danger);
   --color-danger-text: #ffb0b0;
   --color-danger-ink: #fff1f1;
   --color-danger-hover: #bd626d;
@@ -112,6 +129,8 @@
   --space-9: 36px;
   --space-10: 40px;
   --space-12: 48px;
+  --space-label-gap: 7px;
+  --space-label-offset: 18px;
 
   --icon-text-gap: var(--space-3);
   --status-text-gap: var(--space-2);

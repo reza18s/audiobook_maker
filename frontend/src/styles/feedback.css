@@ -4,7 +4,8 @@
 .progress, .job-progress { overflow: hidden; height: 7px; border-radius: var(--radius-pill); background: var(--color-progress-track); }
 .progress { margin: 8px 0 18px; }
 .progress span, .job-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-progress-fill); transition: width var(--duration-progress) var(--easing-standard); }
-.info-banner, .error-banner { margin: 15px 0; padding: 12px 14px; border-radius: var(--radius-control); background: var(--color-success-surface); color: var(--color-success-text); }
+.info-banner, .error-banner { margin: 15px 0; padding: 12px 14px; border-radius: var(--radius-control); }
+.info-banner { background: var(--color-surface-info); color: var(--color-text-info); }
 .error-banner { background: var(--color-danger-background); color: var(--color-danger-text); }
 .error-text { color: var(--color-danger); }
 .status { white-space: nowrap; font-size: 12px; font-weight: 700; }
