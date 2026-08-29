@@ -3,10 +3,9 @@
 }
 
 @media (max-width: 1250px) {
-  :root { --workspace-sidebar-width: 230px; --settings-sidebar-width: 205px; --narration-sidebar-width: 270px; }
+  :root { --workspace-sidebar-width: 230px; --settings-sidebar-width: 205px; --narration-sidebar-width: 270px; --sentence-grid-columns: 45px minmax(340px, 1fr) 150px 100px 85px; }
   .content { padding-left: 20px; padding-right: 20px; }
   .settings-shell { gap: 20px; }
-  .sentence-head, .sentence-row { grid-template-columns: 45px minmax(340px, 1fr) 150px 100px 85px; }
   .sentence-content { padding-left: 20px; padding-right: 20px; }
   .sentence-topbar { padding-left: 14px; padding-right: 14px; }
   .sentence-topbar-actions { gap: var(--space-2); }

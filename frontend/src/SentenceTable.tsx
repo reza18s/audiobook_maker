@@ -54,7 +54,7 @@ export function SentenceTable({ sentences, speakers, selectedIds, onToggle, load
           }
           const sentence = row.sentence;
           return (
-            <div className="sentence-row" key={sentence.id} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}>
+            <div className={`sentence-row ${selectedIds.has(sentence.id) ? "selected" : ""}`} key={sentence.id} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}>
               <label className="row-select"><Checkbox checked={selectedIds.has(sentence.id)} onChange={() => onToggle(sentence.id)} aria-label={`Select sentence ${sentence.sequence + 1}`} /><span className="sequence">{sentence.sequence + 1}</span></label>
               <Textarea defaultValue={sentence.text} onBlur={(event) => event.currentTarget.value !== sentence.text && onEdit(sentence, event.currentTarget.value)} />
               <Select value={sentence.speaker_id ?? ""} onChange={(event) => onSpeaker(sentence, event.target.value)}>

@@ -216,4 +216,5 @@
   --settings-sidebar-width: 235px;
   --narration-sidebar-width: 300px;
   --topbar-height: 78px;
+  --sentence-grid-columns: 58px minmax(500px, 1fr) 190px 115px 95px;
 }
