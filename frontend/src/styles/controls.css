@@ -17,6 +17,8 @@ textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
 .button.destructive:hover, .button.button-destructive:hover { background: #bd626d; }
 .button.secondary, .button.button-secondary { color: #d7e4ea; background: #2a3c4b; }
 .button.secondary:hover, .button.button-secondary:hover { background: #385364; }
+.button.button-outline { border: 1px solid #334354; color: #c1ccd7; background: transparent; }
+.button.button-outline:hover { border-color: #8ee6c6; color: #8ee6c6; background: transparent; }
 .button.button-link { min-height: auto; padding: 0; color: #8ee6c6; background: transparent; text-decoration: underline; }
 .button.button-link:hover { color: #b0f1d9; background: transparent; }
 .primary:disabled { opacity: .4; cursor: default; }

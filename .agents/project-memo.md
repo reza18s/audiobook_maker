@@ -8,6 +8,8 @@
 - `frontend/src/styles.css` owns shared shell variables and responsive drawer/collapse behavior.
 - `frontend/src/styles.css` imports the layered visual system from `frontend/src/styles/` in token, global, control, feedback, layout, and responsive order.
 - Chapter-aware ingestion lives in `backend/app/ingestion.py`; chapter state and the optional per-document marker are persisted in SQLite, and `frontend/src/SentenceTable.tsx` renders structural chapter dividers.
+- Chapter navigation is supplied by `GET /v1/projects/{project_id}/chapters`; sentence queries accept a document/chapter pair and `AppShell.tsx` treats each chapter as one pagination unit.
+- Project/document metadata CRUD is implemented in `backend/app/database.py` and `backend/app/api.py`; changing a document marker requires an explicit reprocess and rebuilds its sentences before ingestion resumes.
 - The frontend uses `HashRouter` for Tauri-safe navigation, TanStack Query from `frontend/src/main.tsx`, and Zustand session/UI state in `frontend/src/store.ts`.
 - Project workflows are composed by `frontend/src/pages/ProjectWorkspace.tsx` from feature views under `frontend/src/features/`; reusable interaction primitives live under `frontend/src/shared/ui/`.
 - Frontend validation is `cd frontend; bun run typecheck; bun run build`; when Bun cannot execute local Windows symlinks, the bundled Node runtime can invoke TypeScript and Vite directly.

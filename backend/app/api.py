@@ -236,7 +236,9 @@ def create_app(
             if chapter_marker is not None and not isinstance(chapter_marker, str):
                 raise DatabaseError("chapter marker must be text")
             document = store.get_document(document_id)
-            reprocess = bool(payload.get("reprocess", False))
+            reprocess = payload.get("reprocess", False)
+            if not isinstance(reprocess, bool):
+                raise DatabaseError("reprocess must be boolean")
             updated = store.update_document(
                 document_id,
                 filename=filename,
