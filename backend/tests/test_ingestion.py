@@ -56,6 +56,21 @@ class DocumentIngestionTests(unittest.TestCase):
         self.assertEqual(len(page), 1)
         self.assertEqual(page[0]["text"], "Two.")
 
+    def test_sentences_can_be_deleted_without_affecting_other_sentences(self):
+        source = self.root / "book.txt"
+        source.write_text("One. Two. Three.", encoding="utf-8")
+        document = self.store.create_document(self.project["id"], source.name, str(source), "txt")
+        DocumentIngestor(self.store).ingest(document["id"])
+        sentences = self.store.list_sentences(self.project["id"], limit=10)
+
+        deleted = self.store.delete_sentences([sentences[0]["id"], sentences[2]["id"]])
+
+        self.assertEqual([item["text"] for item in deleted], ["One.", "Three."])
+        remaining = self.store.list_sentences(self.project["id"], limit=10)
+        self.assertEqual([item["text"] for item in remaining], ["Two."])
+        self.assertEqual(self.store.get_document(document["id"])["persisted_sentences"], 1)
+        self.assertEqual(self.store.get_project(self.project["id"])["sentence_count"], 1)
+
     def test_txt_checkpoint_resume_does_not_duplicate_sentences(self):
         source = self.root / "resume.txt"
         source.write_text("One. Two.", encoding="utf-8")

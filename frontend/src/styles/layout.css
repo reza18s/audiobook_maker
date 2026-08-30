@@ -355,6 +355,9 @@
 .action-menu button:focus-visible { color: var(--color-text-active); background: var(--color-surface-menu-hover); }
 .action-menu button:disabled { cursor: default; color: var(--color-text-subtle); opacity: .7; }
 .action-menu button:disabled:hover { color: var(--color-text-subtle); background: transparent; }
+.action-menu button.menu-item-destructive { color: var(--color-danger); }
+.action-menu button.menu-item-destructive:hover, .action-menu button.menu-item-destructive:focus-visible { color: var(--color-danger-text); background: var(--color-surface-danger); }
+.action-menu button.menu-item-destructive:disabled:hover { color: var(--color-text-subtle); background: transparent; }
 .menu-chevron { color: var(--color-accent); }
 .sentence-body { display: grid; grid-template-columns: minmax(0, 1fr) var(--narration-sidebar-width); gap: 16px; flex: 1; min-height: 0; padding-top: 16px; }
 .sentence-body.narration-sidebar-closed { grid-template-columns: minmax(0, 1fr); }

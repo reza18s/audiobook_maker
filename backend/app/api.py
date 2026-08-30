@@ -126,6 +126,34 @@ def create_app(
                 continue
             audio_path.unlink(missing_ok=True)
 
+    def remove_sentence_file(sentence: dict) -> None:
+        audio_path = Path(sentence["audio_path"] or "")
+        candidate = audio_path if audio_path.is_absolute() else root / audio_path
+        if not sentence["audio_path"]:
+            candidate = project_volume(sentence["project_id"]) / "audio" / f"{sentence['id']}.wav"
+        candidate = candidate.resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            return
+        candidate.unlink(missing_ok=True)
+
+    def delete_sentence_records(sentence_ids: list[str], project_id: str | None = None) -> int:
+        sentences = [store.get_sentence(sentence_id) for sentence_id in sentence_ids]
+        if project_id is not None and any(sentence["project_id"] != project_id for sentence in sentences):
+            raise DatabaseError("sentence does not belong to project")
+        for sentence in sentences:
+            if sentence["generation_job_id"]:
+                try:
+                    queue.cancel(sentence["generation_job_id"])
+                except QueueError:
+                    # A stale job reference should not prevent deleting the sentence.
+                    pass
+        deleted = store.delete_sentences(sentence_ids)
+        for sentence in deleted:
+            remove_sentence_file(sentence)
+        return len(deleted)
+
     def handle_domain_error(error: Exception) -> None:
         if isinstance(error, (DatabaseError, QueueError, IngestionError, ValueError)):
             raise HTTPException(status_code=400, detail=str(error)) from error
@@ -387,6 +415,26 @@ def create_app(
             if "text" in payload and not str(payload["text"]).strip():
                 raise DatabaseError("sentence text cannot be empty")
             return store.update_sentence(sentence_id, **payload)
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.delete("/v1/projects/{project_id}/sentences")
+    def delete_project_sentences(project_id: str, payload: dict[str, Any], _: None = Depends(require_token)) -> dict:
+        try:
+            store.get_project(project_id)
+            sentence_ids = payload.get("sentence_ids")
+            if not isinstance(sentence_ids, list) or not sentence_ids or any(not isinstance(item, str) for item in sentence_ids):
+                raise DatabaseError("sentence_ids must be a non-empty list of strings")
+            return {"deleted": delete_sentence_records(list(dict.fromkeys(sentence_ids)), project_id)}
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
+    @app.delete("/v1/sentences/{sentence_id}", status_code=204)
+    def delete_sentence(sentence_id: str, _: None = Depends(require_token)) -> None:
+        try:
+            delete_sentence_records([sentence_id])
         except Exception as error:
             handle_domain_error(error)
             raise AssertionError("unreachable")

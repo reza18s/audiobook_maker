@@ -605,6 +605,52 @@ class SQLiteStore:
             raise DatabaseError(f"unknown sentence: {sentence_id}")
         return _row_dict(row)
 
+    def delete_sentences(self, sentence_ids: list[str]) -> list[dict]:
+        unique_ids = list(dict.fromkeys(sentence_ids))
+        if not unique_ids:
+            return []
+        placeholders = ", ".join("?" for _ in unique_ids)
+        with self._lock:
+            rows = self._connection.execute(
+                f"""
+                SELECT s.*, d.project_id, d.filename AS document_filename
+                FROM sentences s JOIN documents d ON d.id = s.document_id
+                WHERE s.id IN ({placeholders})
+                """,
+                unique_ids,
+            ).fetchall()
+            found_ids = {str(row["id"]) for row in rows}
+            missing_id = next((sentence_id for sentence_id in unique_ids if sentence_id not in found_ids), None)
+            if missing_id is not None:
+                raise DatabaseError(f"unknown sentence: {missing_id}")
+            self._connection.execute(
+                f"DELETE FROM sentences WHERE id IN ({placeholders})", unique_ids
+            )
+            now = _timestamp()
+            document_counts: dict[str, int] = {}
+            for row in rows:
+                document_id = str(row["document_id"])
+                document_counts[document_id] = document_counts.get(document_id, 0) + 1
+            for document_id, count in document_counts.items():
+                self._connection.execute(
+                    """
+                    UPDATE documents
+                    SET persisted_sentences = MAX(0, persisted_sentences - ?), updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (count, now, document_id),
+                )
+            for project_id in {str(row["project_id"]) for row in rows}:
+                self._connection.execute(
+                    "UPDATE projects SET updated_at = ? WHERE id = ?", (now, project_id)
+                )
+            self._connection.commit()
+        rows_by_id = {str(row["id"]): _row_dict(row) for row in rows}
+        return [rows_by_id[sentence_id] for sentence_id in unique_ids]
+
+    def delete_sentence(self, sentence_id: str) -> dict:
+        return self.delete_sentences([sentence_id])[0]
+
     def get_sentence_by_generation_job(self, job_id: str) -> dict | None:
         with self._lock:
             row = self._connection.execute(

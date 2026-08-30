@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { matchPath, useLocation, useNavigate } from "react-router-dom";
 import { ApiClient } from "../api";
@@ -8,6 +8,7 @@ import { useAppStore } from "../store";
 import { SidebarControlDock, Topbar, WorkspaceSidebar } from "./AppNavigation";
 import { PageContent } from "../pages/PageContent";
 import { Button } from "../shared/ui/Button";
+import { Dialog } from "../shared/ui/Dialog";
 import type { Project } from "../types";
 
 export type AppShellProps = { client: ApiClient; onDisconnect: () => void };
@@ -37,6 +38,8 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const sentenceChapterIndex = useAppStore((state) => state.sentenceChapterIndex);
   const sentenceSelected = useAppStore((state) => state.sentenceSelected);
   const sentenceMoreOpen = useAppStore((state) => state.sentenceMoreOpen);
+  const [sentenceDeleteIds, setSentenceDeleteIds] = useState<string[]>([]);
+  const [sentenceDeleteError, setSentenceDeleteError] = useState("");
   const setWorkspaceSidebarOpen = useAppStore((state) => state.setWorkspaceSidebarOpen);
   const setSettingsSidebarOpen = useAppStore((state) => state.setSettingsSidebarOpen);
   const setNarrationSidebarOpen = useAppStore((state) => state.setNarrationSidebarOpen);
@@ -97,6 +100,25 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const updateProject = useMutation({ mutationFn: ({ projectId, name }: { projectId: string; name: string }) => client.updateProject(projectId, name), onSuccess: (updated) => { queryClient.setQueryData<Project[]>(["projects"], (current) => current?.map((item) => item.id === updated.id ? updated : item)); void queryClient.invalidateQueries({ queryKey: ["projects"] }); } });
   const deleteProject = useMutation({ mutationFn: (projectId: string) => client.deleteProject(projectId), onSuccess: (_deleted, projectId) => { queryClient.setQueryData<Project[]>(["projects"], (current) => current?.filter((item) => item.id !== projectId)); void queryClient.invalidateQueries({ queryKey: ["projects"] }); if (route.projectId === projectId) resetAndNavigate("/home"); } });
   const queueGeneration = useMutation({ mutationFn: ({ projectId, sentenceIds }: { projectId: string; sentenceIds: string[] }) => client.queueGeneration(projectId, sentenceIds), onSuccess: (_result, variables) => { setSentenceSelected([]); void queryClient.invalidateQueries({ queryKey: ["jobs"] }); void queryClient.invalidateQueries({ queryKey: ["sentences", variables.projectId] }); } });
+  const deleteSentences = useMutation({
+    mutationFn: ({ projectId, sentenceIds }: { projectId: string; sentenceIds: string[] }) => client.deleteSentences(projectId, sentenceIds),
+    onSuccess: (_result, variables) => {
+      setSentenceDeleteIds([]);
+      setSentenceDeleteError("");
+      setSentenceSelected([]);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["documents", variables.projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["chapters", variables.projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["sentences", variables.projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-overview", variables.projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["export-preflight", variables.projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["sentence-audio"] }),
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+      ]);
+    },
+    onError: (cause) => setSentenceDeleteError(cause instanceof Error ? cause.message : "Could not delete sentences"),
+  });
 
   if (projects.isLoading) return <div className="loading">Loading projects…</div>;
   if (projects.isError) return <div className="loading"><div className="error-banner">{(projects.error as Error).message}</div><Button onClick={onDisconnect}>Back to connection</Button></div>;
@@ -106,6 +128,21 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const selectAllSentences = () => { setSentenceSelected(sentenceItems.map((item) => item.id)); setSentenceMoreOpen(false); };
   const clearSentenceSelection = () => { setSentenceSelected([]); setSentenceMoreOpen(false); };
   const refreshSentences = () => { void chapters.refetch(); void sentencePage.refetch(); setSentenceMoreOpen(false); };
+  const requestSentenceDelete = () => {
+    if (!project || !sentenceSelected.length) return;
+    setSentenceDeleteError("");
+    setSentenceDeleteIds([...sentenceSelected]);
+    setSentenceMoreOpen(false);
+  };
+  const closeSentenceDelete = () => {
+    if (deleteSentences.isPending) return;
+    setSentenceDeleteIds([]);
+    setSentenceDeleteError("");
+  };
+  const confirmSentenceDelete = () => {
+    if (!project || !sentenceDeleteIds.length) return;
+    deleteSentences.mutate({ projectId: project.id, sentenceIds: sentenceDeleteIds });
+  };
   const toggleWorkspaceSidebar = () => setWorkspaceSidebarOpen((open) => !open);
   const toggleSettingsSidebar = () => setSettingsSidebarOpen((open) => !open);
   const toggleNarrationSidebar = () => setNarrationSidebarOpen((open) => !open);
@@ -113,9 +150,13 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
     <WorkspaceSidebar open={workspaceSidebarOpen} onToggle={toggleWorkspaceSidebar} projects={projects.data ?? []} project={project} view={route.view} tab={route.tab} onHome={openHome} onProject={openProject} onTab={(next) => navigate(next === "health" ? "/health" : `/projects/${encodeURIComponent(project!.id)}/${next}`)} onSettings={openSettings} />
     {workspaceSidebarOpen && <button className="workspace-drawer-backdrop" type="button" tabIndex={-1} aria-label="Close workspace navigation" onClick={() => setWorkspaceSidebarOpen(false)} />}
     <div className="app-main">
-      <Topbar view={route.view} project={project} settingsSidebarOpen={settingsSidebarOpen} onToggleSettingsSidebar={toggleSettingsSidebar} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={toggleNarrationSidebar} sentenceView={sentenceView} sentenceTotal={chapters.data?.reduce((total, chapter) => total + chapter.sentence_count, 0) ?? 0} sentenceSpeakerCount={sentenceSpeakers.data?.items.length ?? 0} sentenceSelectedCount={sentenceSelected.length} sentenceQuery={sentenceQuery} onSentenceQuery={setSentenceQuery} sentenceMoreOpen={sentenceMoreOpen} onToggleSentenceMore={() => setSentenceMoreOpen((open) => !open)} onCloseSentenceMore={() => setSentenceMoreOpen(false)} onSelectAllSentences={selectAllSentences} onClearSentenceSelection={clearSentenceSelection} onRefreshSentences={refreshSentences} onGenerateSentences={() => void queueSelectedSentences()} />
+      <Topbar view={route.view} project={project} settingsSidebarOpen={settingsSidebarOpen} onToggleSettingsSidebar={toggleSettingsSidebar} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={toggleNarrationSidebar} sentenceView={sentenceView} sentenceTotal={chapters.data?.reduce((total, chapter) => total + chapter.sentence_count, 0) ?? 0} sentenceSpeakerCount={sentenceSpeakers.data?.items.length ?? 0} sentenceSelectedCount={sentenceSelected.length} sentenceQuery={sentenceQuery} onSentenceQuery={setSentenceQuery} sentenceMoreOpen={sentenceMoreOpen} onToggleSentenceMore={() => setSentenceMoreOpen((open) => !open)} onCloseSentenceMore={() => setSentenceMoreOpen(false)} onSelectAllSentences={selectAllSentences} onClearSentenceSelection={clearSentenceSelection} onRefreshSentences={refreshSentences} onDeleteSentences={requestSentenceDelete} onGenerateSentences={() => void queueSelectedSentences()} />
       <PageContent projects={projects.data ?? []} view={route.view} project={project} tab={route.tab} client={client} capabilities={capabilities.data ?? []} health={health.data} healthLoading={health.isLoading} healthError={health.isError} capabilitiesLoading={capabilities.isLoading} capabilitiesError={capabilities.isError} settingsTab={route.settingsTab} setSettingsTab={openSettings} onHome={openHome} onProject={openProject} onDisconnect={onDisconnect} settingsSidebarOpen={settingsSidebarOpen} onToggleSettingsSidebar={toggleSettingsSidebar} sentencePage={sentencePage.data} sentenceIsFetching={chapters.isFetching || sentencePage.isFetching} chapters={chapters.data ?? []} sentenceChapter={sentenceChapter} sentenceChapterIndex={sentenceChapterIndex} onSentenceChapterIndex={setSentenceChapterIndex} sentenceSelected={sentenceSelected} onToggleSentence={(id) => setSentenceSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={toggleNarrationSidebar} onCreateProject={(name) => createProject.mutate(name)} onUpdateProject={(projectId, name) => updateProject.mutate({ projectId, name })} onDeleteProject={(projectId) => deleteProject.mutate(projectId)} projectActionPending={createProject.isPending || updateProject.isPending || deleteProject.isPending} projectActionError={[createProject.error, updateProject.error, deleteProject.error].find(Boolean) instanceof Error ? ([createProject.error, updateProject.error, deleteProject.error].find(Boolean) as Error).message : ""} />
     </div>
+    <Dialog open={sentenceDeleteIds.length > 0} title={sentenceDeleteIds.length === 1 ? "Delete sentence?" : "Delete sentences?"} description={sentenceDeleteIds.length === 1 ? "This permanently removes the selected sentence and its generated audio." : `This permanently removes ${sentenceDeleteIds.length} selected sentences and their generated audio.`} disabled={deleteSentences.isPending} onClose={closeSentenceDelete} footer={<><Button variant="ghost" disabled={deleteSentences.isPending} onClick={closeSentenceDelete}>Cancel</Button><Button variant="destructive" loading={deleteSentences.isPending} loadingLabel="Deleting…" onClick={confirmSentenceDelete}>{sentenceDeleteIds.length === 1 ? "Delete sentence" : "Delete sentences"}</Button></>}>
+      {sentenceDeleteError && <div className="error-banner" role="alert">{sentenceDeleteError}</div>}
+      <p className="dialog-warning">This action cannot be undone.</p>
+    </Dialog>
     {route.view === "settings" && <SidebarControlDock settingsSidebarOpen={settingsSidebarOpen} onToggleSettingsSidebar={toggleSettingsSidebar} />}
   </div>;
 }

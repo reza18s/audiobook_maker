@@ -28,13 +28,14 @@ type TopbarProps = {
   onSelectAllSentences: () => void;
   onClearSentenceSelection: () => void;
   onRefreshSentences: () => void;
+  onDeleteSentences: () => void;
   onGenerateSentences: () => void;
 };
 
-export function Topbar({ view, project, settingsSidebarOpen, onToggleSettingsSidebar, narrationSidebarOpen, onToggleNarrationSidebar, sentenceView, sentenceTotal, sentenceSpeakerCount, sentenceSelectedCount, sentenceQuery, onSentenceQuery, sentenceMoreOpen, onToggleSentenceMore, onCloseSentenceMore, onSelectAllSentences, onClearSentenceSelection, onRefreshSentences, onGenerateSentences }: TopbarProps) {
+export function Topbar({ view, project, settingsSidebarOpen, onToggleSettingsSidebar, narrationSidebarOpen, onToggleNarrationSidebar, sentenceView, sentenceTotal, sentenceSpeakerCount, sentenceSelectedCount, sentenceQuery, onSentenceQuery, sentenceMoreOpen, onToggleSentenceMore, onCloseSentenceMore, onSelectAllSentences, onClearSentenceSelection, onRefreshSentences, onDeleteSentences, onGenerateSentences }: TopbarProps) {
   const pageTitle = view === "home" ? "Your projects" : view === "settings" ? "Settings" : view === "health" ? "Server health" : project?.name ?? "Project";
   return <header className={`topbar ${sentenceView ? "sentence-topbar" : ""}`}>
-    {sentenceView && project ? <><div className="sentence-project-details"><span className="project-avatar large">{project.name.slice(0, 1).toUpperCase()}</span><div><div className="eyebrow">{project.document_count} DOCUMENTS · PROJECT</div><h1>{project.name}</h1><span>{sentenceTotal.toLocaleString()} sentences · {sentenceSpeakerCount.toLocaleString()} speakers</span></div></div><TopbarActions query={sentenceQuery} onQuery={onSentenceQuery} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={onToggleNarrationSidebar} moreOpen={sentenceMoreOpen} onToggleMore={onToggleSentenceMore} onCloseMore={onCloseSentenceMore} onSelectAll={onSelectAllSentences} onClearSelection={onClearSentenceSelection} onRefresh={onRefreshSentences} selectedCount={sentenceSelectedCount} canSelectAll={Boolean(sentenceTotal)} onGenerate={onGenerateSentences} /></> : <><div className="topbar-leading"><div><div className="eyebrow">AUDIOBOOK MAKER</div><strong>{pageTitle}</strong></div></div><div className="topbar-actions">{view === "settings" && <SidebarToggle open={settingsSidebarOpen} onClick={onToggleSettingsSidebar} label="engine settings" controls="settings-sidebar" />}</div></>}
+    {sentenceView && project ? <><div className="sentence-project-details"><span className="project-avatar large">{project.name.slice(0, 1).toUpperCase()}</span><div><div className="eyebrow">{project.document_count} DOCUMENTS · PROJECT</div><h1>{project.name}</h1><span>{sentenceTotal.toLocaleString()} sentences · {sentenceSpeakerCount.toLocaleString()} speakers</span></div></div><TopbarActions query={sentenceQuery} onQuery={onSentenceQuery} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={onToggleNarrationSidebar} moreOpen={sentenceMoreOpen} onToggleMore={onToggleSentenceMore} onCloseMore={onCloseSentenceMore} onSelectAll={onSelectAllSentences} onClearSelection={onClearSentenceSelection} onRefresh={onRefreshSentences} onDeleteSentences={onDeleteSentences} selectedCount={sentenceSelectedCount} canSelectAll={Boolean(sentenceTotal)} onGenerate={onGenerateSentences} /></> : <><div className="topbar-leading"><div><div className="eyebrow">AUDIOBOOK MAKER</div><strong>{pageTitle}</strong></div></div><div className="topbar-actions">{view === "settings" && <SidebarToggle open={settingsSidebarOpen} onClick={onToggleSettingsSidebar} label="engine settings" controls="settings-sidebar" />}</div></>}
   </header>;
 }
 
@@ -49,13 +50,14 @@ type TopbarActionsProps = {
   onSelectAll: () => void;
   onClearSelection: () => void;
   onRefresh: () => void;
+  onDeleteSentences: () => void;
   selectedCount: number;
   canSelectAll: boolean;
   onGenerate: () => void;
 };
 
-export function TopbarActions({ query, onQuery, narrationSidebarOpen, onToggleNarrationSidebar, moreOpen, onToggleMore, onCloseMore, onSelectAll, onClearSelection, onRefresh, selectedCount, canSelectAll, onGenerate }: TopbarActionsProps) {
-  return <div className="topbar-actions sentence-topbar-actions"><label className="search-field"><span>Search sentences</span><Input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search sentences…" /></label><SidebarToggle open={narrationSidebarOpen} onClick={onToggleNarrationSidebar} label="narration settings" controls="narration-sidebar" /><Menu open={moreOpen} onOpenChange={(open) => open ? onToggleMore() : onCloseMore()} label="Sentence actions" trigger={<Button variant="outline">More <span className="menu-chevron">⌄</span></Button>}><MenuItem disabled={!canSelectAll} onSelect={onSelectAll}>Select all in chapter</MenuItem><MenuItem disabled={!selectedCount} onSelect={onClearSelection}>Clear selection</MenuItem><MenuItem onSelect={onRefresh}>Refresh chapter</MenuItem></Menu><Button variant="primary" type="button" disabled={!selectedCount} onClick={onGenerate}>Generate {selectedCount || "selected"}</Button></div>;
+export function TopbarActions({ query, onQuery, narrationSidebarOpen, onToggleNarrationSidebar, moreOpen, onToggleMore, onCloseMore, onSelectAll, onClearSelection, onRefresh, onDeleteSentences, selectedCount, canSelectAll, onGenerate }: TopbarActionsProps) {
+  return <div className="topbar-actions sentence-topbar-actions"><label className="search-field"><span>Search sentences</span><Input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search sentences…" /></label><SidebarToggle open={narrationSidebarOpen} onClick={onToggleNarrationSidebar} label="narration settings" controls="narration-sidebar" /><Menu open={moreOpen} onOpenChange={(open) => open ? onToggleMore() : onCloseMore()} label="Sentence actions" trigger={<Button variant="outline">More <span className="menu-chevron">⌄</span></Button>}><MenuItem disabled={!canSelectAll} onSelect={onSelectAll}>Select all in chapter</MenuItem><MenuItem disabled={!selectedCount} onSelect={onClearSelection}>Clear selection</MenuItem><MenuItem onSelect={onRefresh}>Refresh chapter</MenuItem><MenuItem className="menu-item-destructive" disabled={!selectedCount} onSelect={onDeleteSentences}>Delete selected sentences</MenuItem></Menu><Button variant="primary" type="button" disabled={!selectedCount} onClick={onGenerate}>Generate {selectedCount || "selected"}</Button></div>;
 }
 
 type WorkspaceSidebarProps = {

@@ -85,6 +85,9 @@ export class ApiClient {
   updateSentence(sentenceId: string, changes: { text?: string; speaker_id?: string | null }) {
     return this.request(`/v1/sentences/${sentenceId}`, { method: "PATCH", body: JSON.stringify(changes) });
   }
+  deleteSentences(projectId: string, sentenceIds: string[]) {
+    return this.request<{ deleted: number }>(`/v1/projects/${encodeURIComponent(projectId)}/sentences`, { method: "DELETE", body: JSON.stringify({ sentence_ids: sentenceIds }) });
+  }
   async audio(sentenceId: string): Promise<Blob> {
     const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/v1/sentences/${sentenceId}/audio`, { headers: { Authorization: `Bearer ${this.token}` } });
     if (!response.ok) throw new ApiError(response.status, "sentence audio is unavailable");
