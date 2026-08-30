@@ -64,8 +64,8 @@
   --color-text-brand: #d8e4e9;
   --color-text-active: #eafff7;
   --color-text-tab: #8594a3;
-  --color-text-section: #647486;
-  --color-text-sidebar-empty: #68798a;
+  --color-text-section: #8b9aaa;
+  --color-text-sidebar-empty: #8b9aaa;
   --color-text-overview: #8291a0;
   --color-text-project-meta: #a1afbc;
   --color-text-speaker-meta: #8fa2b2;
@@ -76,12 +76,12 @@
   --color-text-arrow: #7890a0;
   --color-muted: #91a0af;
   --color-muted-strong: #aebaca;
-  --color-text-subtle: #718091;
-  --color-text-placeholder: #6f8190;
+  --color-text-subtle: #8193a4;
+  --color-text-placeholder: #8193a4;
   --color-text-label: #8d9aaa;
   --color-text-nav: #9ba9b8;
   --color-text-nav-icon: #769083;
-  --color-text-faint: #66788a;
+  --color-text-faint: #8193a4;
   --color-text-accent: #a4e8d0;
   --color-text-accent-soft: #9edbc8;
   --color-text-accent-muted: #82cdb5;

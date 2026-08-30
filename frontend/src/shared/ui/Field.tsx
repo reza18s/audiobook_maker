@@ -62,7 +62,7 @@ export function Field({
     <label className={joinClasses("field", className)} htmlFor={fieldId}>
       <span>
         {label}
-        {required && <span aria-hidden="true"> *</span>}
+        {required && <span className="field-required" aria-hidden="true">*</span>}
       </span>
       {control}
       {description && <span className="field-help" id={descriptionId}>{description}</span>}

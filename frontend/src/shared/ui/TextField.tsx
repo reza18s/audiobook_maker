@@ -1,5 +1,5 @@
-import { useId } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
+import { Field } from "./Field";
 import { Input } from "./Input";
 
 export type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "onChange" | "value" | "aria-describedby"> & {
@@ -23,26 +23,21 @@ export function TextField({
   name,
   ...props
 }: TextFieldProps) {
-  const generatedId = useId();
-  const fieldId = id ?? name ?? `field-${generatedId}`;
-  const descriptionId = description || helpText ? `${fieldId}-help` : undefined;
-  const errorId = error ? `${fieldId}-error` : undefined;
-  const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined;
-
   return (
-    <label className="field" htmlFor={fieldId}>
-      <span>{label}</span>
+    <Field
+      label={label}
+      id={id}
+      description={description || helpText}
+      error={error}
+      required={props.required}
+    >
       <Input
         {...props}
         name={name}
-        id={fieldId}
+        id={id}
         value={value}
         onChange={(event) => onValueChange(event.target.value)}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
       />
-      {(description || helpText) && <span className="field-help" id={descriptionId}>{description ?? helpText}</span>}
-      {error && <span className="field-help error-text" id={errorId} role="alert">{error}</span>}
-    </label>
+    </Field>
   );
 }

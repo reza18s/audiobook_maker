@@ -2,35 +2,35 @@
 .field { display: grid; gap: var(--space-2); margin-top: var(--space-4); color: var(--color-muted-strong); font-size: var(--text-base); }
 .field:first-child { margin-top: 0; }
 .field > span:first-child { font-weight: var(--weight-semibold); }
-.field input:not(.ui-checkbox), .field select, .field textarea { margin: 0; min-height: var(--control-height-lg); padding: 0 13px; border-color: var(--color-border-control-strong); background: var(--color-surface-input); }
-.field input:not(.ui-checkbox)::placeholder { color: var(--color-text-placeholder); }
-.field input:not(.ui-checkbox):focus, .field select:focus, .field textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-focus-glow); }
-.field input[aria-invalid="true"], .field select[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: var(--color-danger); }
-.field input[aria-invalid="true"]:focus, .field select[aria-invalid="true"]:focus, .field textarea[aria-invalid="true"]:focus { border-color: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger-focus-glow); }
+.field > .ui-input, .field > .ui-select, .field > .ui-textarea { margin: 0; min-height: var(--control-height-lg); padding: 0 13px; border-color: var(--color-border-control-strong); background: var(--color-surface-input); }
+.field > .ui-input::placeholder { color: var(--color-text-placeholder); }
+.field > .ui-input:focus, .field > .ui-select:focus, .field > .ui-textarea:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-focus-glow); }
+.field > .ui-input[aria-invalid="true"], .field > .ui-select[aria-invalid="true"], .field > .ui-textarea[aria-invalid="true"] { border-color: var(--color-danger); }
+.field > .ui-input[aria-invalid="true"]:focus, .field > .ui-select[aria-invalid="true"]:focus, .field > .ui-textarea[aria-invalid="true"]:focus { border-color: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger-focus-glow); }
 .field-help { color: var(--color-muted); font-size: var(--text-xs); line-height: 1.4; }
+.field-required { margin-left: 2px; color: var(--color-text-accent-muted); }
 .connection-card .wide { margin-top: 22px; min-height: var(--control-height-lg); }
 
 /* Native controls */
-input, select, textarea { width: 100%; color: var(--color-text); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: var(--radius-control); padding: 10px 12px; outline: none; }
-input:focus, select:focus, textarea:focus { border-color: var(--color-accent); }
-input:disabled, select:disabled, textarea:disabled { cursor: default; color: var(--color-text-subtle); background: var(--color-background-muted); border-color: var(--color-border-subtle); }
-textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
+.ui-input, .ui-select, .ui-textarea { width: 100%; color: var(--color-text); background: var(--color-surface-input); border: 1px solid var(--color-border-control); border-radius: var(--radius-control); padding: 10px 12px; }
+.ui-input:focus, .ui-select:focus, .ui-textarea:focus { border-color: var(--color-accent); }
+.ui-input:disabled, .ui-select:disabled, .ui-textarea:disabled { cursor: default; color: var(--color-text-subtle); background: var(--color-background-muted); border-color: var(--color-border-subtle); }
+.ui-textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
 
 /* Button contract */
-.button, .primary, .upload-button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0 16px; color: var(--color-accent-ink); background: var(--color-accent); font-weight: var(--weight-heavy); line-height: 1.2; white-space: nowrap; }
-.button:not(:disabled):hover, .primary:not(:disabled):hover, .upload-button:hover { background: var(--color-accent-strong); }
-.button.button-secondary, .button.secondary { color: var(--color-text-secondary-bright); background: var(--color-surface-secondary); }
-.button.button-secondary:not(:disabled):hover, .button.secondary:not(:disabled):hover { background: var(--color-surface-secondary-hover); }
-.button.button-destructive, .button.destructive { color: var(--color-danger-ink); background: var(--color-surface-danger-strong); }
-.button.button-destructive:not(:disabled):hover, .button.destructive:not(:disabled):hover { background: var(--color-danger-hover); }
-.button.button-ghost, .button.ghost, .ghost, .pagination button, .loading > button { min-height: var(--control-height); border-color: var(--color-border-control); color: var(--color-text-secondary); background: transparent; }
-.button.button-ghost:not(:disabled):hover, .button.ghost:not(:disabled):hover, .ghost:not(:disabled):hover, .pagination button:not(:disabled):hover, .loading > button:not(:disabled):hover { border-color: var(--color-accent); color: var(--color-accent); background: transparent; }
-.button.button-outline { border-color: var(--color-border-control); color: var(--color-text-secondary); background: transparent; }
-.button.button-outline:not(:disabled):hover { border-color: var(--color-accent); color: var(--color-accent); background: transparent; }
+.button, .upload-button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0 16px; color: var(--color-accent-ink); background: var(--color-accent); font-weight: var(--weight-heavy); line-height: 1.2; white-space: nowrap; }
+.button.button-primary, .button.button-default:not(:disabled), .upload-button { color: var(--color-accent-ink); background: var(--color-accent); }
+.button.button-primary:not(:disabled):hover, .button.button-default:not(:disabled):hover, .upload-button:hover { background: var(--color-accent-strong); }
+.button.button-secondary { color: var(--color-text-secondary-bright); background: var(--color-surface-secondary); }
+.button.button-secondary:not(:disabled):hover { background: var(--color-surface-secondary-hover); }
+.button.button-destructive { color: var(--color-danger-ink); background: var(--color-surface-danger-strong); }
+.button.button-destructive:not(:disabled):hover { background: var(--color-danger-hover); }
+.button.button-ghost, .button.button-outline { min-height: var(--control-height); border-color: var(--color-border-control); color: var(--color-text-secondary); background: transparent; }
+.button.button-ghost:not(:disabled):hover, .button.button-outline:not(:disabled):hover { border-color: var(--color-accent); color: var(--color-accent); background: transparent; }
 .button.button-link { min-height: auto; padding: 0; color: var(--color-accent); background: transparent; text-decoration: underline; }
 .button.button-link:not(:disabled):hover { color: var(--color-accent-strong); background: transparent; }
-.button:active:not(:disabled), .primary:active:not(:disabled), .upload-button:active { transform: translateY(1px); }
-.button:disabled, .primary:disabled { cursor: default; opacity: .55; }
+.button:active:not(:disabled), .upload-button:active { transform: translateY(1px); }
+.button:disabled { cursor: default; opacity: .55; }
 .button-size-sm { min-height: var(--control-height-sm); padding: 0 12px; font-size: var(--text-sm); }
 .button-size-lg { min-height: var(--control-height-lg); padding: 0 18px; }
 .button-size-icon { width: var(--control-height); min-height: var(--control-height); padding: 0; }
@@ -38,9 +38,9 @@ textarea { min-height: 46px; resize: vertical; line-height: 1.35; }
 
 /* File inputs remain in the tab order while the label carries the button treatment. */
 .upload-button { position: relative; overflow: hidden; cursor: pointer; }
-.upload-button input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
-.upload-button input:disabled { cursor: default; }
+.upload-button .ui-input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.upload-button .ui-input:disabled { cursor: default; }
 .upload-button:focus-within { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
-.ui-checkbox { width: 16px; height: 16px; min-height: 16px !important; margin: 0; padding: 0 !important; accent-color: var(--color-accent); }
+.ui-checkbox { width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--color-accent); }
 .field .ui-checkbox { width: 16px; }
