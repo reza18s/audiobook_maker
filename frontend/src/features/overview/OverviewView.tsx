@@ -1,16 +1,21 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiClient } from "../../api";
 import type { ChapterSummary, Project, ProjectOverview } from "../../types";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 import { EmptyState } from "../../shared/ui/EmptyState";
+import { Field } from "../../shared/ui/Field";
 import { PageHeader } from "../../shared/ui/PageHeader";
 import { ProgressBar } from "../../shared/ui/ProgressBar";
 import { StatusBadge } from "../../shared/ui/StatusBadge";
+import { Textarea } from "../../shared/ui/Textarea";
+import { TextField } from "../../shared/ui/TextField";
 
 export function OverviewView({ client, project }: { client: ApiClient; project: Project }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const overview = useQuery({
     queryKey: ["project-overview", project.id],
     queryFn: () => client.projectOverview(project.id),
@@ -26,6 +31,20 @@ export function OverviewView({ client, project }: { client: ApiClient; project: 
 
   const data = overview.data;
   const readiness = readinessCopy(data);
+  return <OverviewContent client={client} project={project} data={data} readiness={readiness} navigate={navigate} queryClient={queryClient} />;
+}
+
+function OverviewContent({ client, project, data, readiness, navigate, queryClient }: { client: ApiClient; project: Project; data: ProjectOverview; readiness: ReturnType<typeof readinessCopy>; navigate: ReturnType<typeof useNavigate>; queryClient: ReturnType<typeof useQueryClient> }) {
+  const [metadata, setMetadata] = useState(() => projectMetadata(data.project));
+  useEffect(() => setMetadata(projectMetadata(data.project)), [data.project]);
+  const saveMetadata = useMutation({
+    mutationFn: () => client.updateProject(project.id, project.name, metadata),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ProjectOverview>(["project-overview", project.id], (current) => current ? { ...current, project: updated } : current);
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+  const updateMetadata = (field: keyof ProjectMetadata, value: string) => setMetadata((current) => ({ ...current, [field]: value }));
   return <section className="project-overview">
     <PageHeader eyebrow="PROJECT OVERVIEW" title={project.name} description="See what is ready, what needs attention, and where to continue production." actions={<Button variant="primary" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/sentences`)}>Open sentence review</Button>} />
     <div className="project-readiness-grid">
@@ -45,6 +64,11 @@ export function OverviewView({ client, project }: { client: ApiClient; project: 
         </div>
       </Card>
     </div>
+    <Card className="project-metadata-card" title="Book identity" description="Save the metadata that will be reused by future audiobook exports." actions={<Button variant="outline" loading={saveMetadata.isPending} loadingLabel="Saving…" onClick={() => saveMetadata.mutate()}>Save metadata</Button>}>
+      <div className="project-metadata-grid"><TextField label="Author" value={metadata.author} onValueChange={(value) => updateMetadata("author", value)} /><TextField label="Narrator" value={metadata.narrator} onValueChange={(value) => updateMetadata("narrator", value)} /><TextField label="Language" value={metadata.language} onValueChange={(value) => updateMetadata("language", value)} placeholder="en" /><TextField label="Series" value={metadata.series} onValueChange={(value) => updateMetadata("series", value)} /><Field label="Description"><Textarea rows={2} value={metadata.description} onChange={(event) => updateMetadata("description", event.target.value)} placeholder="Optional audiobook description" /></Field></div>
+      {saveMetadata.isError && <StatusBadge tone="danger" live="assertive">{saveMetadata.error instanceof Error ? saveMetadata.error.message : "Could not save metadata"}</StatusBadge>}
+      {saveMetadata.isSuccess && <StatusBadge tone="success" live="polite">Metadata saved</StatusBadge>}
+    </Card>
     <div className="section-heading"><div><div className="eyebrow">PRODUCTION MAP</div><h2>Chapters</h2></div><span className="muted">Review progress chapter by chapter.</span></div>
     {!data.chapters.length ? <EmptyState title="No chapters yet" description="Import a document to create the first production chapter." action={<Button variant="outline" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/documents`)}>Import a document</Button>} /> : <div className="chapter-list">{data.chapters.map((chapter) => <ChapterCard chapter={chapter} key={chapter.id} onOpen={() => navigate(`/projects/${encodeURIComponent(project.id)}/sentences`)} />)}</div>}
     <div className="overview-footer-actions"><Button variant="outline" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/documents`)}>Manage documents</Button><Button variant="outline" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/speakers`)}>Manage voices</Button><Button variant="outline" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}/export`)}>Open export studio</Button></div>
@@ -60,6 +84,12 @@ function ChapterCard({ chapter, onOpen }: { chapter: ChapterSummary; onOpen: () 
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "info" | "success" | "warning" }) {
   return <div className={tone ? `production-stat production-stat-${tone}` : "production-stat"}><span>{label}</span><strong>{value.toLocaleString()}</strong></div>;
+}
+
+type ProjectMetadata = Pick<Required<Project>, "author" | "narrator" | "language" | "series" | "description">;
+
+function projectMetadata(project: Project): ProjectMetadata {
+  return { author: project.author ?? "", narrator: project.narrator ?? "", language: project.language ?? "en", series: project.series ?? "", description: project.description ?? "" };
 }
 
 function readinessCopy(data: ProjectOverview): { label: string; description: string; tone: "danger" | "neutral" | "success" | "warning" } {

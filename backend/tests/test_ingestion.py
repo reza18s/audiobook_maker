@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from zipfile import ZipFile
 
 from backend.app.database import SQLiteStore
 from backend.app.ingestion import DocumentIngestor
@@ -42,7 +43,7 @@ class DocumentIngestionTests(unittest.TestCase):
         completed = sentences[0]
         self.store.update_sentence(completed["id"], status="completed", audio_path="audio.wav")
         edited = self.store.update_sentence(completed["id"], text="Edited sentence.")
-        self.assertEqual(edited["status"], "pending")
+        self.assertEqual(edited["status"], "stale")
         self.assertIsNone(edited["audio_path"])
 
     def test_sentence_pages_are_bounded(self):
@@ -125,6 +126,26 @@ class DocumentIngestionTests(unittest.TestCase):
         self.store.delete_project(self.project["id"])
         with self.assertRaisesRegex(ValueError, "unknown project"):
             self.store.get_project(self.project["id"])
+
+    def test_epub_spine_is_extracted_in_reading_order(self):
+        source = self.root / "book.epub"
+        container = """<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"""
+        package = """<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><manifest><item id="first" href="chapter%201.xhtml" media-type="application/xhtml+xml"/><item id="second" href="chapter2.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="first"/><itemref idref="second"/></spine></package>"""
+        with ZipFile(source, "w") as archive:
+            archive.writestr("META-INF/container.xml", container)
+            archive.writestr("OPS/package.opf", package)
+            archive.writestr("OPS/chapter 1.xhtml", "<html><body><h1>Chapter 1</h1><p>Opening scene.</p></body></html>")
+            archive.writestr("OPS/chapter2.xhtml", "<html><body><h1>Chapter 2</h1><p>Closing scene.</p></body></html>")
+        document = self.store.create_document(
+            self.project["id"], source.name, str(source), "epub", total_bytes=source.stat().st_size
+        )
+
+        result = DocumentIngestor(self.store).ingest(document["id"])
+
+        self.assertEqual(result["status"], "completed")
+        sentences = self.store.list_sentences(self.project["id"], limit=10)
+        self.assertEqual([item["text"] for item in sentences], ["Opening scene.", "Closing scene."])
+        self.assertEqual([item["chapter_number"] for item in sentences], [1, 2])
 
 
 if __name__ == "__main__":

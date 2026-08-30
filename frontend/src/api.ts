@@ -4,12 +4,14 @@ import type {
   Document,
   EngineProfile,
   ExportRecord,
+  ExportPreflight,
   Health,
   Job,
   Project,
   ProjectOverview,
   SentencePage,
   Speaker,
+  VoiceVariant,
 } from "./types";
 
 export class ApiError extends Error {
@@ -48,8 +50,13 @@ export class ApiClient {
   projects() { return this.request<Project[]>("/v1/projects"); }
   projectOverview(projectId: string) { return this.request<ProjectOverview>(`/v1/projects/${encodeURIComponent(projectId)}/overview`); }
   createProject(name: string) { return this.request<Project>("/v1/projects", { method: "POST", body: JSON.stringify({ name }) }); }
-  updateProject(projectId: string, name: string) { return this.request<Project>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ name }) }); }
+  updateProject(projectId: string, name: string, metadata: Partial<Pick<Project, "author" | "narrator" | "language" | "series" | "description">> = {}) { return this.request<Project>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ name, ...metadata }) }); }
   deleteProject(projectId: string) { return this.request<void>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }); }
+  uploadProjectCover(projectId: string, file: File) {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    return this.request<{ project: Project; bytes: number }>(`/v1/projects/${encodeURIComponent(projectId)}/cover`, { method: "POST", body });
+  }
   documents(projectId: string) { return this.request<Document[]>(`/v1/projects/${projectId}/documents`); }
   updateDocument(documentId: string, payload: { filename: string; chapter_marker: string; reprocess?: boolean }) {
     return this.request<Document>(`/v1/documents/${encodeURIComponent(documentId)}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -63,6 +70,7 @@ export class ApiClient {
     const query = search.toString();
     return this.request<Chapter[]>(`/v1/projects/${projectId}/chapters${query ? `?${query}` : ""}`);
   }
+  exportPreflight(projectId: string) { return this.request<ExportPreflight>(`/v1/projects/${encodeURIComponent(projectId)}/export-preflight`); }
   sentences(projectId: string, params: { chapter?: Pick<Chapter, "document_id" | "number">; query: string; status?: string; speakerId?: string }) {
     const search = new URLSearchParams();
     if (params.chapter) {
@@ -82,12 +90,29 @@ export class ApiClient {
     if (!response.ok) throw new ApiError(response.status, "sentence audio is unavailable");
     return response.blob();
   }
-  speakers(projectId: string) { return this.request<{ items: Speaker[]; profiles: EngineProfile[] }>(`/v1/projects/${projectId}/speakers`); }
+  speakers(projectId: string) { return this.request<{ items: Speaker[]; profiles: EngineProfile[]; variants: VoiceVariant[] }>(`/v1/projects/${projectId}/speakers`); }
   createSpeaker(projectId: string, payload: { name: string; color: string; engine_id?: string; voice?: string; settings?: Record<string, unknown> }) {
     return this.request<Speaker>(`/v1/projects/${projectId}/speakers`, { method: "POST", body: JSON.stringify(payload) });
   }
   updateProfile(speakerId: string, payload: { engine_id: string; voice: string; settings: Record<string, unknown> }) {
     return this.request<EngineProfile>(`/v1/speakers/${speakerId}/profile`, { method: "PUT", body: JSON.stringify(payload) });
+  }
+  createVoiceVariant(speakerId: string, payload: { name: string; engine_id: string; voice: string; settings: Record<string, unknown> }) {
+    return this.request<VoiceVariant>(`/v1/speakers/${speakerId}/variants`, { method: "POST", body: JSON.stringify(payload) });
+  }
+  deleteVoiceVariant(variantId: string) { return this.request<void>(`/v1/voice-variants/${encodeURIComponent(variantId)}`, { method: "DELETE" }); }
+  async previewVoiceVariant(variantId: string, text: string, language = "en"): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/v1/voice-variants/${encodeURIComponent(variantId)}/preview`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language }),
+    });
+    if (!response.ok) {
+      let detail = response.statusText;
+      try { detail = ((await response.json()) as { detail?: string }).detail ?? detail; } catch { /* keep the HTTP status */ }
+      throw new ApiError(response.status, detail);
+    }
+    return response.blob();
   }
   uploadSpeakerSample(speakerId: string, file: File) {
     const body = new FormData();
@@ -100,8 +125,8 @@ export class ApiClient {
   jobs() { return this.request<Job[]>("/v1/jobs"); }
   cancelJob(jobId: string) { return this.request<Job>(`/v1/jobs/${jobId}/cancel`, { method: "POST" }); }
   exports(projectId: string) { return this.request<ExportRecord[]>(`/v1/projects/${projectId}/exports`); }
-  createExport(projectId: string, format: "mp3" | "wav", pauseSeconds: number) {
-    return this.request<ExportRecord>(`/v1/projects/${projectId}/exports`, { method: "POST", body: JSON.stringify({ format, pause_seconds: pauseSeconds }) });
+  createExport(projectId: string, format: "mp3" | "wav" | "m4b", pauseSeconds: number, metadata: Partial<Record<"title" | "author" | "narrator" | "language" | "series" | "description", string>> = {}) {
+    return this.request<ExportRecord>(`/v1/projects/${projectId}/exports`, { method: "POST", body: JSON.stringify({ format, pause_seconds: pauseSeconds, metadata }) });
   }
   cancelExport(exportId: string) { return this.request<ExportRecord>(`/v1/exports/${exportId}/cancel`, { method: "POST" }); }
 

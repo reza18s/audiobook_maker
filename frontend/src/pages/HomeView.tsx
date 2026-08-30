@@ -71,6 +71,7 @@ export function HomeView({ projects, onSelect, onCreate, onUpdate, onDelete, hea
         <div><span>Documents</span><strong>{documents.toLocaleString()}</strong><small>Imported source files</small></div>
         <div><span>Sentences</span><strong>{sentences.toLocaleString()}</strong><small>Ready to narrate</small></div>
       </div>
+      {!projects.length && <Card as="section" className="first-run-card"><div><h2>Your production path</h2><p>Create a workspace, import a book, assign voices, and review the generated audio before exporting a finished audiobook.</p></div><ol className="first-run-steps"><li><strong>Create</strong><span>Name the audiobook project.</span></li><li><strong>Import</strong><span>TXT, EPUB, or selectable PDF.</span></li><li><strong>Narrate</strong><span>Assign speakers and generate.</span></li><li><strong>Export</strong><span>Preflight and package as M4B.</span></li></ol></Card>}
       <div className="section-heading"><div><div className="eyebrow">YOUR LIBRARY</div><h2>All projects</h2></div><span className="muted">Select a project from the cards or the sidebar.</span></div>
       <div className="project-grid">
         {projects.map((project) => (

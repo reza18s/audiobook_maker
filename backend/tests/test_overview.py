@@ -37,6 +37,30 @@ class ProjectOverviewTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_voice_variant_lifecycle_and_sentence_edits_mark_audio_stale(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = SQLiteStore(root / "audiobook.sqlite3")
+            try:
+                project = store.create_project("Voices")
+                document = store.create_document(project["id"], "book.txt", str(root / "book.txt"), "txt")
+                speaker = store.create_speaker(project["id"], "Narrator")
+                store.append_sentences(document["id"], [{"text": "Original.", "sequence": 0, "speaker_id": speaker["id"]}])
+                sentence = store.list_sentences(project["id"], limit=1)[0]
+                store.update_sentence(sentence["id"], status="completed", audio_path=str(root / "audio.wav"))
+
+                variant = store.create_voice_variant(speaker["id"], "Calm", "debug-tts", "calm")
+                self.assertEqual(store.list_voice_variants(project["id"])[0]["id"], variant["id"])
+                stale = store.update_sentence(sentence["id"], text="Updated.")
+                self.assertEqual(stale["status"], "stale")
+                self.assertIsNone(stale["audio_path"])
+
+                deleted = store.delete_voice_variant(variant["id"])
+                self.assertEqual(deleted["name"], "Calm")
+                self.assertEqual(store.list_voice_variants(project["id"]), [])
+            finally:
+                store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,12 @@ export type Project = {
   name: string;
   document_count: number;
   sentence_count: number;
+  author?: string;
+  narrator?: string;
+  language?: string;
+  series?: string;
+  description?: string;
+  cover_path?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -43,7 +49,7 @@ export type Document = {
   project_id: string;
   filename: string;
   source_path: string;
-  kind: "txt" | "pdf";
+  kind: "txt" | "epub" | "pdf";
   status: string;
   total_bytes: number;
   processed_bytes: number;
@@ -108,6 +114,8 @@ export type Speaker = {
   project_id: string;
   name: string;
   color: string;
+  sentence_count?: number;
+  generated_count?: number;
 };
 
 export type EngineProfile = {
@@ -116,6 +124,17 @@ export type EngineProfile = {
   engine_id: string;
   voice: string;
   settings: string;
+};
+
+export type VoiceVariant = {
+  id: string;
+  speaker_id: string;
+  name: string;
+  engine_id: string;
+  voice: string;
+  settings: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Job = {
@@ -132,11 +151,21 @@ export type ExportRecord = {
   id: string;
   project_id: string;
   status: string;
-  format: "mp3" | "wav";
+  format: "mp3" | "wav" | "m4b";
   pause_seconds: number;
   output_path: string;
   total_sentences: number;
   completed_sentences: number;
   percent: number;
   error: string | null;
+  metadata?: string;
+};
+
+export type ExportPreflight = {
+  ready: boolean;
+  total_sentences: number;
+  ready_count: number;
+  invalid_count: number;
+  invalid: Array<{ id: string; sequence: number; status: string; reason: string }>;
+  blockers: string[];
 };

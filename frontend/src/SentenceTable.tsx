@@ -24,6 +24,14 @@ type TableRow =
 
 export function SentenceTable({ sentences, speakers, selectedIds, onToggle, loadAudio, onEdit, onSpeaker }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const onChange = () => setIsMobile(media.matches);
+    onChange();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
   const rows: TableRow[] = [];
   let previousChapterKey = "";
   for (const sentence of sentences) {
@@ -39,7 +47,7 @@ export function SentenceTable({ sentences, speakers, selectedIds, onToggle, load
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => rows[index]?.kind === "chapter" ? 38 : 66,
+    estimateSize: (index) => rows[index]?.kind === "chapter" ? 38 : isMobile ? 148 : 66,
     overscan: 8,
   });
 

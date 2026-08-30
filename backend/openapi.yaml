@@ -32,6 +32,15 @@ paths:
     delete:
       operationId: deleteProject
       responses: {"204": {description: Deleted}}
+  /v1/projects/{projectId}/cover:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: uploadProjectCover
+      requestBody: {required: true, content: {multipart/form-data: {schema: {type: object, required: [file], properties: {file: {type: string, format: binary}}}}}}
+      responses: {"201": {description: Stored project cover}}
+    get:
+      operationId: getProjectCover
+      responses: {"200": {description: Project cover image}}
   /v1/projects/{projectId}/documents:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     get:
@@ -62,6 +71,11 @@ paths:
         - {name: status, in: query, schema: {type: string}}
         - {name: speaker_id, in: query, schema: {type: string}}
       responses: {"200": {description: Chapters available for chapter-based sentence pagination}}
+  /v1/projects/{projectId}/export-preflight:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: getExportPreflight
+      responses: {"200": {description: Export readiness and blocking sentence list}}
   /v1/projects/{projectId}/overview:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     get:
@@ -112,11 +126,28 @@ paths:
       operationId: updateSpeakerProfile
       requestBody: {required: true, content: {application/json: {schema: {type: object, required: [engine_id], properties: {engine_id: {type: string}, voice: {type: string}, settings: {type: object}}}}}}
       responses: {"200": {description: Updated engine profile}}
+  /v1/speakers/{speakerId}/variants:
+    parameters: [{name: speakerId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: createVoiceVariant
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [name, engine_id], properties: {name: {type: string}, engine_id: {type: string}, voice: {type: string}, settings: {type: object}}}}}}
+      responses: {"201": {description: Created voice variant}}
+  /v1/voice-variants/{variantId}:
+    parameters: [{name: variantId, in: path, required: true, schema: {type: string}}]
+    delete:
+      operationId: deleteVoiceVariant
+      responses: {"204": {description: Deleted voice variant}}
+  /v1/voice-variants/{variantId}/preview:
+    parameters: [{name: variantId, in: path, required: true, schema: {type: string}}]
+    post:
+      operationId: previewVoiceVariant
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [text], properties: {text: {type: string, maxLength: 2000}, language: {type: string}}}}}}
+      responses: {"200": {description: Isolated WAV preview audio, content: {audio/wav: {schema: {type: string, format: binary}}}}}
   /v1/projects/{projectId}/generation:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     post:
       operationId: queueGeneration
-      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {sentence_ids: {type: array, items: {type: string}}, query: {type: string}, status: {type: string}, speaker_id: {type: string}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {sentence_ids: {type: array, items: {type: string}}, query: {type: string}, status: {type: string, description: Use needs_audio to select pending and stale sentences}, speaker_id: {type: string}}}}}}
       responses: {"202": {description: Durable jobs queued}}
   /v1/jobs:
     get:
@@ -139,7 +170,7 @@ paths:
       responses: {"200": {description: Export jobs}}
     post:
       operationId: createExport
-      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {format: {type: string, enum: [mp3, wav]}, pause_seconds: {type: number, minimum: 0}}}}}}
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {format: {type: string, enum: [mp3, wav, m4b]}, pause_seconds: {type: number, minimum: 0}, metadata: {type: object}}}}}}
       responses: {"202": {description: Export queued}}
   /v1/exports/{exportId}/cancel:
     parameters: [{name: exportId, in: path, required: true, schema: {type: string}}]
@@ -157,8 +188,13 @@ components:
   schemas:
     ProjectInput:
       type: object
-      required: [name]
-      properties: {name: {type: string, minLength: 1}}
+      properties:
+        name: {type: string, minLength: 1}
+        author: {type: string}
+        narrator: {type: string}
+        language: {type: string}
+        series: {type: string}
+        description: {type: string}
     DocumentInput:
       type: object
       properties:

@@ -35,6 +35,14 @@ gateway, generation worker, media worker, and TTS engines run as services.
 
 :heavy_check_mark: Integration with popular open-source models like TortoiseTTS, RVC, StyleTTS, F5TTS, XTTS (to be added) and GPT-SoVITS
 
+:heavy_check_mark: Project production dashboard with chapter progress, missing-voice blockers, stale-audio tracking, and export preflight
+
+:heavy_check_mark: TXT, EPUB, and selectable-text PDF import with resumable ingestion and chapter detection
+
+:heavy_check_mark: Voice variants with engine settings and isolated sample previews
+
+:heavy_check_mark: Audiobook metadata, cover art, MP3/WAV export, and chaptered M4B export
+
 ## Windows Package Installation
 Available for Youtube Channel Members at the Supporter (Package) level: https://www.youtube.com/channel/UCwNdsF7ZXOlrTKhSoGJPnlQ/join or via purchase here: https://buymeacoffee.com/jarodsjourney/extras
 ### Pre-requisites
@@ -283,7 +291,32 @@ If you run into issues where you can't pull the updates, you may have made edits
    ```
 
 ## Usage
-To be written
+
+1. Connect the desktop client to the gateway using the URL and API token from
+   `deploy/.env`.
+2. Create a project from the home screen, then open its **Documents** tab and
+   import a TXT, EPUB, or selectable-text PDF. Review the file and chapter
+   marker before confirming the import.
+3. Open **Speakers** and create a speaker profile for each narrator or
+   character. Upload a WAV sample when the selected engine needs one. Save a
+   voice variant when you want alternate delivery settings, preview it, and
+   use it as the speaker's default production profile when ready.
+4. Use **Overview** to monitor chapter progress and resolve blockers. Editing
+   sentence text or changing its speaker marks existing audio as stale, so the
+   sentence is safely included in the next generation pass.
+5. Open **Sentences** to review chapter text, assign speakers, filter for
+   missing or stale audio, listen to generated lines, and queue selected
+   sentences. The **Queue** tab shows durable jobs and allows cancellation.
+6. Open **Export**, complete the title/author/narrator metadata and optional
+   cover, then resolve every preflight blocker. M4B exports include chapter
+   markers and embedded metadata; MP3 and WAV are available for simpler
+   workflows.
+
+Generated files and project metadata stay under `project-data`; the SQLite
+database and queue state stay under `sqlite-data`. Back up both folders before
+upgrading or moving the deployment. Engine availability is shown by the
+gateway health state, and the app remains usable for importing and reviewing
+projects when no engine is currently ready.
 
 
 ## Acknowledgements

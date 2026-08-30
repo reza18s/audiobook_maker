@@ -13,7 +13,11 @@ from .media import MediaExportService
 def run() -> None:
     database_path = os.environ.get("AUDIOBOOK_DATABASE", "sqlite-data/audiobook.sqlite3")
     store = SQLiteStore(database_path)
-    service = MediaExportService(store, ffmpeg_bin=os.environ.get("FFMPEG_BIN", "ffmpeg"))
+    service = MediaExportService(
+        store,
+        ffmpeg_bin=os.environ.get("FFMPEG_BIN", "ffmpeg"),
+        storage_root=os.environ.get("AUDIOBOOK_STORAGE_ROOT", "project-data"),
+    )
     poll_seconds = float(os.environ.get("MEDIA_POLL_SECONDS", "1"))
     try:
         while True:

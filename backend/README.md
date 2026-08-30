@@ -1,9 +1,10 @@
 # Audiobook Maker backend
 
 The backend contains the stable contracts, durable SQLite generation queue,
-project/document/sentence persistence, resumable TXT and selectable-text PDF
-ingestion, HTTP engine generation worker, and cancellable FFmpeg media export
-worker. The HTTP transport is exposed by `backend.app.api`.
+project/document/sentence persistence, resumable TXT/EPUB/selectable-text PDF
+ingestion, HTTP engine generation worker, isolated voice previews, and
+cancellable FFmpeg media export worker. The HTTP transport is exposed by
+`backend.app.api`.
 
 Run the gateway after installing `requirements.txt` and configuring a token:
 

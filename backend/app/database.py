@@ -7,6 +7,7 @@ the trusted single-user deployment described by the architecture.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,15 +52,46 @@ class SQLiteStore:
                 raise DatabaseError(f"project already exists: {project_id}") from error
         return self.get_project(project_id)
 
-    def update_project(self, project_id: str, *, name: str) -> dict:
-        clean_name = name.strip()
+    def update_project(
+        self,
+        project_id: str,
+        *,
+        name: str | None = None,
+        author: str | None = None,
+        narrator: str | None = None,
+        language: str | None = None,
+        series: str | None = None,
+        description: str | None = None,
+    ) -> dict:
+        project = self.get_project(project_id)
+        clean_name = project["name"] if name is None else name.strip()
         if not clean_name:
             raise DatabaseError("project name is required")
+        values = {
+            "name": clean_name,
+            "author": project.get("author", "") if author is None else author.strip(),
+            "narrator": project.get("narrator", "") if narrator is None else narrator.strip(),
+            "language": project.get("language", "en") if language is None else language.strip() or "en",
+            "series": project.get("series", "") if series is None else series.strip(),
+            "description": project.get("description", "") if description is None else description.strip(),
+        }
+        with self._lock:
+            self._connection.execute(
+                """
+                UPDATE projects SET name = ?, author = ?, narrator = ?, language = ?,
+                    series = ?, description = ?, updated_at = ? WHERE id = ?
+                """,
+                (*values.values(), _timestamp(), project_id),
+            )
+            self._connection.commit()
+        return self.get_project(project_id)
+
+    def update_project_cover(self, project_id: str, cover_path: str | None) -> dict:
         self.get_project(project_id)
         with self._lock:
             self._connection.execute(
-                "UPDATE projects SET name = ?, updated_at = ? WHERE id = ?",
-                (clean_name, _timestamp(), project_id),
+                "UPDATE projects SET cover_path = ?, updated_at = ? WHERE id = ?",
+                (cover_path, _timestamp(), project_id),
             )
             self._connection.commit()
         return self.get_project(project_id)
@@ -116,8 +148,8 @@ class SQLiteStore:
         chapter_marker: str = "",
     ) -> dict:
         self.get_project(project_id)
-        if kind not in {"txt", "pdf"}:
-            raise DatabaseError("document kind must be txt or pdf")
+        if kind not in {"txt", "pdf", "epub"}:
+            raise DatabaseError("document kind must be txt, epub, or pdf")
         document_id = document_id or str(uuid4())
         now = _timestamp()
         with self._lock:
@@ -620,7 +652,7 @@ class SQLiteStore:
             # Text or speaker changes invalidate the existing audio artifact.
             changes = {
                 **changes,
-                "status": "pending",
+                "status": "stale",
                 "audio_path": None,
                 "generation_job_id": None,
                 "error": None,
@@ -653,7 +685,16 @@ class SQLiteStore:
         self.get_project(project_id)
         with self._lock:
             rows = self._connection.execute(
-                "SELECT * FROM speakers WHERE project_id = ? ORDER BY created_at, id", (project_id,)
+                """
+                SELECT s.*, COUNT(se.id) AS sentence_count,
+                       COALESCE(SUM(CASE WHEN se.status = 'completed' THEN 1 ELSE 0 END), 0) AS generated_count
+                FROM speakers s
+                LEFT JOIN sentences se ON se.speaker_id = s.id
+                WHERE s.project_id = ?
+                GROUP BY s.id
+                ORDER BY s.created_at, s.id
+                """,
+                (project_id,),
             ).fetchall()
         return [_row_dict(row) for row in rows]
 
@@ -699,10 +740,78 @@ class SQLiteStore:
             ).fetchall()
         return [_row_dict(row) for row in rows]
 
-    def create_export(self, project_id: str, output_format: str, pause_seconds: float, output_path: str) -> dict:
+    def create_voice_variant(
+        self,
+        speaker_id: str,
+        name: str,
+        engine_id: str,
+        voice: str = "",
+        settings: str = "{}",
+    ) -> dict:
+        self.get_speaker(speaker_id)
+        clean_name = name.strip()
+        if not clean_name:
+            raise DatabaseError("voice variant name is required")
+        if not engine_id.strip():
+            raise DatabaseError("voice variant engine is required")
+        variant_id = str(uuid4())
+        now = _timestamp()
+        with self._lock:
+            try:
+                self._connection.execute(
+                    """
+                    INSERT INTO voice_variants (id, speaker_id, name, engine_id, voice, settings, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (variant_id, speaker_id, clean_name, engine_id.strip(), voice.strip(), settings, now, now),
+                )
+                self._connection.commit()
+            except sqlite3.IntegrityError as error:
+                raise DatabaseError(f"voice variant already exists: {clean_name}") from error
+        return self.get_voice_variant(variant_id)
+
+    def get_voice_variant(self, variant_id: str) -> dict:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM voice_variants WHERE id = ?", (variant_id,)
+            ).fetchone()
+        if row is None:
+            raise DatabaseError(f"unknown voice variant: {variant_id}")
+        return _row_dict(row)
+
+    def list_voice_variants(self, project_id: str) -> list[dict]:
         self.get_project(project_id)
-        if output_format not in {"mp3", "wav"}:
-            raise DatabaseError("export format must be mp3 or wav")
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT vv.* FROM voice_variants vv
+                JOIN speakers s ON s.id = vv.speaker_id
+                WHERE s.project_id = ?
+                ORDER BY s.created_at, vv.created_at, vv.id
+                """,
+                (project_id,),
+            ).fetchall()
+        return [_row_dict(row) for row in rows]
+
+    def delete_voice_variant(self, variant_id: str) -> dict:
+        variant = self.get_voice_variant(variant_id)
+        with self._lock:
+            self._connection.execute("DELETE FROM voice_variants WHERE id = ?", (variant_id,))
+            self._connection.commit()
+        return variant
+
+    def create_export(
+        self,
+        project_id: str,
+        output_format: str,
+        pause_seconds: float,
+        output_path: str,
+        metadata: dict | None = None,
+    ) -> dict:
+        self.get_project(project_id)
+        if output_format not in {"mp3", "wav", "m4b"}:
+            raise DatabaseError("export format must be mp3, wav, or m4b")
+        metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
         export_id = str(uuid4())
         now = _timestamp()
         with self._lock:
@@ -710,10 +819,10 @@ class SQLiteStore:
                 """
                 INSERT INTO exports (
                     id, project_id, status, format, pause_seconds, output_path,
-                    total_sentences, completed_sentences, percent, error, created_at, updated_at
-                ) VALUES (?, ?, 'queued', ?, ?, ?, 0, 0, 0, NULL, ?, ?)
+                    total_sentences, completed_sentences, percent, error, metadata, created_at, updated_at
+                    ) VALUES (?, ?, 'queued', ?, ?, ?, 0, 0, 0, NULL, ?, ?, ?)
                 """,
-                (export_id, project_id, output_format, pause_seconds, output_path, now, now),
+                (export_id, project_id, output_format, pause_seconds, output_path, metadata_json, now, now),
             )
             self._connection.commit()
         return self.get_export(export_id)
@@ -752,7 +861,7 @@ class SQLiteStore:
         return [_row_dict(row) for row in rows]
 
     def update_export(self, export_id: str, **changes: object) -> dict:
-        allowed = {"status", "total_sentences", "completed_sentences", "percent", "error", "output_path"}
+        allowed = {"status", "total_sentences", "completed_sentences", "percent", "error", "output_path", "metadata"}
         unknown = set(changes) - allowed
         if unknown:
             raise DatabaseError(f"unsupported export fields: {', '.join(sorted(unknown))}")
@@ -782,12 +891,48 @@ class SQLiteStore:
             ).fetchall()
         return [_row_dict(row) for row in rows]
 
+    def get_export_preflight(self, project_id: str, storage_root: str | Path | None = None) -> dict:
+        sentences = self.get_export_sentences(project_id)
+        root = Path(storage_root).resolve() if storage_root is not None else None
+        invalid = []
+        ready_count = 0
+        for sentence in sentences:
+            audio_path = Path(sentence["audio_path"] or "")
+            if root is not None and not audio_path.is_absolute():
+                audio_path = root / audio_path
+            ready = sentence["status"] == "completed" and bool(sentence["audio_path"]) and audio_path.is_file()
+            if ready:
+                ready_count += 1
+            else:
+                invalid.append({
+                    "id": sentence["id"],
+                    "sequence": int(sentence["sequence"]) + 1,
+                    "status": sentence["status"],
+                    "reason": "missing audio" if not sentence["audio_path"] or not audio_path.is_file() else sentence["status"],
+                })
+        blockers = []
+        if not sentences:
+            blockers.append("Project has no sentences to export.")
+        if invalid:
+            blockers.append(f"{len(invalid):,} sentence{'' if len(invalid) == 1 else 's'} need audio review or regeneration.")
+        return {
+            "ready": bool(sentences) and not invalid,
+            "total_sentences": len(sentences),
+            "ready_count": ready_count,
+            "invalid_count": len(invalid),
+            "invalid": invalid[:25],
+            "blockers": blockers,
+        }
+
     def _create_schema(self) -> None:
         with self._lock:
             self._connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS projects (
-                    id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL, author TEXT NOT NULL DEFAULT '',
+                    narrator TEXT NOT NULL DEFAULT '', language TEXT NOT NULL DEFAULT 'en',
+                    series TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', cover_path TEXT,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS documents (
                     id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -809,6 +954,13 @@ class SQLiteStore:
                     engine_id TEXT NOT NULL, voice TEXT NOT NULL, settings TEXT NOT NULL,
                     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS voice_variants (
+                    id TEXT PRIMARY KEY, speaker_id TEXT NOT NULL REFERENCES speakers(id) ON DELETE CASCADE,
+                    name TEXT NOT NULL, engine_id TEXT NOT NULL, voice TEXT NOT NULL, settings TEXT NOT NULL,
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    UNIQUE(speaker_id, name)
+                );
+                CREATE INDEX IF NOT EXISTS voice_variants_speaker_idx ON voice_variants(speaker_id, created_at);
                 CREATE TABLE IF NOT EXISTS sentences (
                     id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
                     sequence INTEGER NOT NULL, text TEXT NOT NULL, page_number INTEGER NOT NULL,
@@ -824,7 +976,8 @@ class SQLiteStore:
                     id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
                     status TEXT NOT NULL, format TEXT NOT NULL, pause_seconds REAL NOT NULL,
                     output_path TEXT NOT NULL, total_sentences INTEGER NOT NULL, completed_sentences INTEGER NOT NULL,
-                    percent REAL NOT NULL, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                    percent REAL NOT NULL, error TEXT, metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS exports_project_idx ON exports(project_id, created_at);
                 """
@@ -840,6 +993,20 @@ class SQLiteStore:
                 if column not in document_columns:
                     self._connection.execute(statement)
 
+            project_columns = {
+                row["name"] for row in self._connection.execute("PRAGMA table_info(projects)").fetchall()
+            }
+            for statement, column in (
+                ("ALTER TABLE projects ADD COLUMN author TEXT NOT NULL DEFAULT ''", "author"),
+                ("ALTER TABLE projects ADD COLUMN narrator TEXT NOT NULL DEFAULT ''", "narrator"),
+                ("ALTER TABLE projects ADD COLUMN language TEXT NOT NULL DEFAULT 'en'", "language"),
+                ("ALTER TABLE projects ADD COLUMN series TEXT NOT NULL DEFAULT ''", "series"),
+                ("ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''", "description"),
+                ("ALTER TABLE projects ADD COLUMN cover_path TEXT", "cover_path"),
+            ):
+                if column not in project_columns:
+                    self._connection.execute(statement)
+
             sentence_columns = {
                 row["name"] for row in self._connection.execute("PRAGMA table_info(sentences)").fetchall()
             }
@@ -849,6 +1016,12 @@ class SQLiteStore:
             ):
                 if column not in sentence_columns:
                     self._connection.execute(statement)
+
+            export_columns = {
+                row["name"] for row in self._connection.execute("PRAGMA table_info(exports)").fetchall()
+            }
+            if "metadata" not in export_columns:
+                self._connection.execute("ALTER TABLE exports ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
             self._connection.commit()
 
 
@@ -871,9 +1044,12 @@ def _sentence_filters(
     if query.strip():
         clauses.append("s.text LIKE ?")
         params.append(f"%{query.strip()}%")
-    if status.strip():
+    clean_status = status.strip()
+    if clean_status == "needs_audio":
+        clauses.append("s.status IN ('pending', 'stale')")
+    elif clean_status:
         clauses.append("s.status = ?")
-        params.append(status.strip())
+        params.append(clean_status)
     if speaker_id.strip():
         clauses.append("s.speaker_id = ?")
         params.append(speaker_id.strip())

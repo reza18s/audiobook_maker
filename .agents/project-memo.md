@@ -12,4 +12,8 @@
 - Project/document metadata CRUD is implemented in `backend/app/database.py` and `backend/app/api.py`; changing a document marker requires an explicit reprocess and rebuilds its sentences before ingestion resumes.
 - The frontend uses `HashRouter` for Tauri-safe navigation, TanStack Query from `frontend/src/main.tsx`, and Zustand session/UI state in `frontend/src/store.ts`.
 - Project workflows are composed by `frontend/src/pages/ProjectWorkspace.tsx` from feature views under `frontend/src/features/`; reusable interaction primitives live under `frontend/src/shared/ui/`.
+- `GET /v1/projects/{project_id}/overview` is the production dashboard source; it reports chapter progress and blockers, while `GET /v1/projects/{project_id}/export-preflight` blocks exports with missing/stale audio.
+- `backend/app/ingestion.py` supports standard-library EPUB spine extraction in addition to TXT/PDF; EPUB chapters use the same sentence/chapter persistence path and are covered by `backend/tests/test_ingestion.py`.
+- `voice_variants` stores alternate engine settings; the variant preview route generates isolated WAV directly from the configured engine and never creates a production sentence or queue job.
+- M4B export is chapter-aware and metadata-aware; FFmpeg remains the runtime requirement for media assembly and cover embedding.
 - Frontend validation is `cd frontend; bun run typecheck; bun run build`; when Bun cannot execute local Windows symlinks, the bundled Node runtime can invoke TypeScript and Vite directly.

@@ -17,4 +17,5 @@
 .status-failed, .status-cancelled { border-color: var(--color-status-danger-border); color: var(--color-status-danger-text); background: var(--color-status-danger-surface); }
 .status-running, .status-processing, .status-cancelling { border-color: var(--color-status-warning-border); color: var(--color-status-warning-text); background: var(--color-status-warning-surface); }
 .status-queued, .status-pending, .status-retrying { border-color: var(--color-status-info-border); color: var(--color-status-info-text); background: var(--color-status-info-surface); }
+.status-stale { border-color: var(--color-status-warning-border); color: var(--color-status-warning-text); background: var(--color-status-warning-surface); }
 .status > .status-dot { background: currentColor; box-shadow: none; }
