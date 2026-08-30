@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Project } from "../types";
+import type { Health, Project } from "../types";
 import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { Dialog } from "../shared/ui/Dialog";
@@ -14,17 +14,37 @@ type HomeViewProps = {
   onCreate: (name: string) => void;
   onUpdate: (projectId: string, name: string) => void;
   onDelete: (projectId: string) => void;
+  health?: Health;
+  healthLoading: boolean;
+  healthError: boolean;
+  capabilitiesLoading: boolean;
+  capabilitiesError: boolean;
+  engineCount: number;
+  healthyEngineCount: number;
   actionError?: string;
   actionPending?: boolean;
 };
 
-export function HomeView({ projects, onSelect, onCreate, onUpdate, onDelete, actionError = "", actionPending = false }: HomeViewProps) {
+export function HomeView({ projects, onSelect, onCreate, onUpdate, onDelete, health, healthLoading, healthError, capabilitiesLoading, capabilitiesError, engineCount, healthyEngineCount, actionError = "", actionPending = false }: HomeViewProps) {
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<Project | null>(null);
   const [editName, setEditName] = useState("");
   const [deleting, setDeleting] = useState<Project | null>(null);
   const documents = projects.reduce((total, project) => total + project.document_count, 0);
   const sentences = projects.reduce((total, project) => total + project.sentence_count, 0);
+  const systemStatus = healthLoading || capabilitiesLoading
+    ? { label: "Checking systems…", detail: "Checking gateway and production engines.", tone: "warning" as const }
+    : healthError || !health
+      ? { label: "Gateway unavailable", detail: "Reconnect to refresh gateway and engine status.", tone: "danger" as const }
+      : health.status !== "ready"
+        ? { label: `Gateway ${health.status}`, detail: "The gateway responded, but is not ready for production.", tone: "warning" as const }
+        : capabilitiesError
+          ? { label: "Engine status unavailable", detail: "The gateway is ready, but engine capabilities could not be loaded.", tone: "warning" as const }
+          : engineCount === 0
+            ? { label: "No engines ready", detail: "Connect at least one production engine before generating audio.", tone: "warning" as const }
+            : healthyEngineCount < engineCount
+              ? { label: `${healthyEngineCount}/${engineCount} engines ready`, detail: "Some production engines need attention. Open Health for details.", tone: "warning" as const }
+              : { label: "All systems ready", detail: `${engineCount} production engine${engineCount === 1 ? "" : "s"} available for generation.`, tone: "success" as const };
 
   const beginEdit = (project: Project) => {
     setEditing(project);
@@ -44,7 +64,7 @@ export function HomeView({ projects, onSelect, onCreate, onUpdate, onDelete, act
 
   return (
     <section className="home-view">
-      <PageHeader className="home-heading" eyebrow="WORKSPACE OVERVIEW" title="Good to see you." description="Choose a project to continue writing, narrating, and exporting your audiobook." actions={<StatusBadge className="home-badge" dot tone="success">All systems connected</StatusBadge>} />
+      <PageHeader className="home-heading" eyebrow="WORKSPACE OVERVIEW" title="Good to see you." description="Choose a project to continue writing, narrating, and exporting your audiobook." actions={<StatusBadge className="home-badge" dot tone={systemStatus.tone} title={systemStatus.detail} aria-label={systemStatus.detail}>{systemStatus.label}</StatusBadge>} />
       {actionError && <div className="error-banner" role="alert">{actionError}</div>}
       <div className="overview-strip">
         <div><span>Projects</span><strong>{projects.length}</strong><small>Your audiobook workspaces</small></div>

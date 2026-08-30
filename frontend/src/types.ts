@@ -7,6 +7,12 @@ export type Project = {
   updated_at: string;
 };
 
+export type Health = {
+  status: string;
+  contract_version: string;
+  storage: string;
+};
+
 export type Document = {
   id: string;
   project_id: string;

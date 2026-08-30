@@ -4,6 +4,7 @@ import type {
   Document,
   EngineProfile,
   ExportRecord,
+  Health,
   Job,
   Project,
   SentencePage,
@@ -41,7 +42,7 @@ export class ApiClient {
     return (await response.json()) as T;
   }
 
-  health() { return this.request<{ status: string; contract_version: string; storage: string }>("/v1/health"); }
+  health() { return this.request<Health>("/v1/health"); }
   capabilities() { return this.request<Capability[]>("/v1/capabilities"); }
   projects() { return this.request<Project[]>("/v1/projects"); }
   createProject(name: string) { return this.request<Project>("/v1/projects", { method: "POST", body: JSON.stringify({ name }) }); }
