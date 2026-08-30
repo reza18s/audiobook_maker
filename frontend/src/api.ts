@@ -7,6 +7,7 @@ import type {
   Health,
   Job,
   Project,
+  ProjectOverview,
   SentencePage,
   Speaker,
 } from "./types";
@@ -45,6 +46,7 @@ export class ApiClient {
   health() { return this.request<Health>("/v1/health"); }
   capabilities() { return this.request<Capability[]>("/v1/capabilities"); }
   projects() { return this.request<Project[]>("/v1/projects"); }
+  projectOverview(projectId: string) { return this.request<ProjectOverview>(`/v1/projects/${encodeURIComponent(projectId)}/overview`); }
   createProject(name: string) { return this.request<Project>("/v1/projects", { method: "POST", body: JSON.stringify({ name }) }); }
   updateProject(projectId: string, name: string) { return this.request<Project>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ name }) }); }
   deleteProject(projectId: string) { return this.request<void>(`/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" }); }

@@ -277,6 +277,14 @@ def create_app(
             handle_domain_error(error)
             raise AssertionError("unreachable")
 
+    @app.get("/v1/projects/{project_id}/overview")
+    def project_overview(project_id: str, _: None = Depends(require_token)) -> dict:
+        try:
+            return store.get_project_overview(project_id)
+        except Exception as error:
+            handle_domain_error(error)
+            raise AssertionError("unreachable")
+
     @app.get("/v1/projects/{project_id}/sentences")
     def list_sentences(
         project_id: str,

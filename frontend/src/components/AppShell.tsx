@@ -33,6 +33,7 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const settingsSidebarOpen = useAppStore((state) => state.settingsSidebarOpen);
   const narrationSidebarOpen = useAppStore((state) => state.narrationSidebarOpen);
   const sentenceQuery = useAppStore((state) => state.sentenceQuery);
+  const sentenceStatus = useAppStore((state) => state.sentenceStatus);
   const sentenceChapterIndex = useAppStore((state) => state.sentenceChapterIndex);
   const sentenceSelected = useAppStore((state) => state.sentenceSelected);
   const sentenceMoreOpen = useAppStore((state) => state.sentenceMoreOpen);
@@ -50,9 +51,9 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
   const capabilities = useQuery({ queryKey: ["capabilities"], queryFn: () => client.capabilities() });
   const project = projects.data?.find((item) => item.id === route.projectId) ?? null;
   const projectTabIsValid = route.view !== "project" || projectTabs.includes(route.tab as Exclude<Tab, "health">);
-  const chapters = useQuery({ queryKey: ["chapters", project?.id ?? "", sentenceQuery], queryFn: () => client.chapters(project!.id, { query: sentenceQuery }), enabled: sentenceView && Boolean(project), refetchInterval: sentenceView ? 2000 : false });
+  const chapters = useQuery({ queryKey: ["chapters", project?.id ?? "", sentenceQuery, sentenceStatus], queryFn: () => client.chapters(project!.id, { query: sentenceQuery, status: sentenceStatus }), enabled: sentenceView && Boolean(project), refetchInterval: sentenceView ? 2000 : false });
   const sentenceChapter = chapters.data?.[Math.min(sentenceChapterIndex, Math.max(0, (chapters.data?.length ?? 1) - 1))] ?? null;
-  const sentencePage = useQuery({ queryKey: ["sentences", project?.id ?? "", sentenceChapter?.id ?? "", sentenceQuery], queryFn: () => client.sentences(project!.id, { chapter: sentenceChapter!, query: sentenceQuery }), enabled: sentenceView && Boolean(project) && Boolean(sentenceChapter), refetchInterval: sentenceView ? 2000 : false });
+  const sentencePage = useQuery({ queryKey: ["sentences", project?.id ?? "", sentenceChapter?.id ?? "", sentenceQuery, sentenceStatus], queryFn: () => client.sentences(project!.id, { chapter: sentenceChapter!, query: sentenceQuery, status: sentenceStatus }), enabled: sentenceView && Boolean(project) && Boolean(sentenceChapter), refetchInterval: sentenceView ? 2000 : false });
   const sentenceSpeakers = useQuery({ queryKey: ["speakers", project?.id ?? ""], queryFn: () => client.speakers(project!.id), enabled: sentenceView && Boolean(project) });
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export function AppShell({ client, onDisconnect }: AppShellProps) {
 
   const resetAndNavigate = (path: string) => { resetSentenceState(); navigate(path); };
   const openHome = () => resetAndNavigate("/home");
-  const openProject = (next: Project) => resetAndNavigate(`/projects/${encodeURIComponent(next.id)}/documents`);
+  const openProject = (next: Project) => resetAndNavigate(`/projects/${encodeURIComponent(next.id)}/overview`);
   const openSettings = (section: SettingsTab = "engines") => navigate(`/settings/${section}`);
   const createProject = useMutation({ mutationFn: (name: string) => client.createProject(name), onSuccess: (created) => { queryClient.setQueryData<Project[]>(["projects"], (current) => current ? [created, ...current] : [created]); void queryClient.invalidateQueries({ queryKey: ["projects"] }); resetAndNavigate(`/projects/${encodeURIComponent(created.id)}/documents`); } });
   const updateProject = useMutation({ mutationFn: ({ projectId, name }: { projectId: string; name: string }) => client.updateProject(projectId, name), onSuccess: (updated) => { queryClient.setQueryData<Project[]>(["projects"], (current) => current?.map((item) => item.id === updated.id ? updated : item)); void queryClient.invalidateQueries({ queryKey: ["projects"] }); } });

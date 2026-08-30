@@ -271,6 +271,115 @@ class SQLiteStore:
             })
         return chapters
 
+    def get_project_overview(self, project_id: str) -> dict:
+        """Return the persisted production state needed by the project dashboard."""
+
+        project = self.get_project(project_id)
+        documents = self.list_documents(project_id)
+        with self._lock:
+            chapter_rows = self._connection.execute(
+                """
+                SELECT d.id AS document_id, d.filename AS document_filename,
+                       s.chapter_number, MIN(s.chapter_title) AS chapter_title,
+                       COUNT(*) AS sentence_count,
+                       SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
+                       SUM(CASE WHEN s.status IN ('failed', 'cancelled') THEN 1 ELSE 0 END) AS failed_count,
+                       SUM(CASE WHEN s.status IN ('pending', 'stale') THEN 1 ELSE 0 END) AS pending_count,
+                       SUM(CASE WHEN s.speaker_id IS NULL THEN 1 ELSE 0 END) AS missing_speaker_count
+                FROM sentences s
+                JOIN documents d ON d.id = s.document_id
+                WHERE d.project_id = ?
+                GROUP BY d.id, d.filename, s.chapter_number
+                ORDER BY d.created_at, d.id, s.chapter_number
+                """,
+                (project_id,),
+            ).fetchall()
+            totals_row = self._connection.execute(
+                """
+                SELECT COUNT(*) AS sentence_count,
+                       SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
+                       SUM(CASE WHEN s.status IN ('failed', 'cancelled') THEN 1 ELSE 0 END) AS failed_count,
+                       SUM(CASE WHEN s.status IN ('pending', 'stale') THEN 1 ELSE 0 END) AS pending_count,
+                       SUM(CASE WHEN s.status IN ('queued', 'running', 'retrying', 'waiting_for_dependency', 'cancel_requested') THEN 1 ELSE 0 END) AS active_count,
+                       SUM(CASE WHEN s.speaker_id IS NULL THEN 1 ELSE 0 END) AS missing_speaker_count
+                FROM sentences s
+                JOIN documents d ON d.id = s.document_id
+                WHERE d.project_id = ?
+                """,
+                (project_id,),
+            ).fetchone()
+
+        total_sentences = int(totals_row["sentence_count"] or 0)
+        completed_sentences = int(totals_row["completed_count"] or 0)
+        failed_sentences = int(totals_row["failed_count"] or 0)
+        pending_sentences = int(totals_row["pending_count"] or 0)
+        active_sentences = int(totals_row["active_count"] or 0)
+        missing_speaker_sentences = int(totals_row["missing_speaker_count"] or 0)
+        failed_documents = sum(document["status"] == "failed" for document in documents)
+        active_documents = sum(document["status"] in {"pending", "processing"} for document in documents)
+
+        blockers: list[str] = []
+        if not documents:
+            blockers.append("Import a document to create chapters.")
+        if failed_documents:
+            blockers.append(f"Fix {failed_documents} failed document import{'' if failed_documents == 1 else 's'}.")
+        if active_documents:
+            blockers.append(f"Wait for {active_documents} document import{'' if active_documents == 1 else 's'} to finish.")
+        if documents and not total_sentences and not active_documents and not failed_documents:
+            blockers.append("No sentences were found in the imported documents.")
+        if missing_speaker_sentences:
+            blockers.append(f"Assign speakers to {missing_speaker_sentences:,} sentence{'' if missing_speaker_sentences == 1 else 's'}.")
+        if pending_sentences:
+            blockers.append(f"Generate {pending_sentences:,} sentence{'' if pending_sentences == 1 else 's'} without audio.")
+        if failed_sentences:
+            blockers.append(f"Review or retry {failed_sentences:,} failed sentence{'' if failed_sentences == 1 else 's'}.")
+        if active_sentences:
+            blockers.append(f"Wait for {active_sentences:,} sentence job{'' if active_sentences == 1 else 's'} to finish.")
+
+        if not total_sentences:
+            readiness = "empty"
+        elif not blockers:
+            readiness = "ready"
+        elif active_documents or active_sentences:
+            readiness = "in_progress"
+        else:
+            readiness = "blocked"
+
+        chapters = []
+        for row in chapter_rows:
+            sentence_count = int(row["sentence_count"] or 0)
+            completed_count = int(row["completed_count"] or 0)
+            chapters.append({
+                "id": f"{row['document_id']}:{int(row['chapter_number'] or 0)}",
+                "document_id": row["document_id"],
+                "document_filename": row["document_filename"],
+                "number": int(row["chapter_number"] or 0),
+                "title": row["chapter_title"],
+                "sentence_count": sentence_count,
+                "completed_count": completed_count,
+                "failed_count": int(row["failed_count"] or 0),
+                "pending_count": int(row["pending_count"] or 0),
+                "missing_speaker_count": int(row["missing_speaker_count"] or 0),
+                "progress_percent": round(completed_count / sentence_count * 100, 2) if sentence_count else 0,
+            })
+
+        return {
+            "project": project,
+            "documents": documents,
+            "chapters": chapters,
+            "totals": {
+                "sentence_count": total_sentences,
+                "completed_count": completed_sentences,
+                "failed_count": failed_sentences,
+                "pending_count": pending_sentences,
+                "active_count": active_sentences,
+                "missing_speaker_count": missing_speaker_sentences,
+            },
+            "progress_percent": round(completed_sentences / total_sentences * 100, 2) if total_sentences else 0,
+            "readiness": readiness,
+            "blockers": blockers,
+        }
+
     def update_document_progress(
         self,
         document_id: str,

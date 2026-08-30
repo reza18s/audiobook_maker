@@ -13,6 +13,31 @@ export type Health = {
   storage: string;
 };
 
+export type ChapterSummary = Chapter & {
+  completed_count: number;
+  failed_count: number;
+  pending_count: number;
+  missing_speaker_count: number;
+  progress_percent: number;
+};
+
+export type ProjectOverview = {
+  project: Project;
+  documents: Document[];
+  chapters: ChapterSummary[];
+  totals: {
+    sentence_count: number;
+    completed_count: number;
+    failed_count: number;
+    pending_count: number;
+    active_count: number;
+    missing_speaker_count: number;
+  };
+  progress_percent: number;
+  readiness: "empty" | "in_progress" | "blocked" | "ready";
+  blockers: string[];
+};
+
 export type Document = {
   id: string;
   project_id: string;

@@ -5,6 +5,7 @@ import { DocumentsView } from "../features/documents/DocumentsView";
 import { ExportView } from "../features/exports/ExportView";
 import { HealthView } from "../features/health/HealthView";
 import { QueueView } from "../features/generation-queue/QueueView";
+import { OverviewView } from "../features/overview/OverviewView";
 import { SentencesView } from "../features/sentences/SentencesView";
 import { SpeakersView } from "../features/speakers/SpeakersView";
 
@@ -29,7 +30,7 @@ type ProjectWorkspaceProps = SentencePageState & {
 };
 
 export function ProjectWorkspace({ client, project, tab, capabilities, sentencePage, sentenceIsFetching, chapters, sentenceChapter, sentenceChapterIndex, onSentenceChapterIndex, sentenceSelected, onToggleSentence, narrationSidebarOpen, onToggleNarrationSidebar }: ProjectWorkspaceProps) {
-  return <>{tab === "documents" && <DocumentsView client={client} project={project} />}{tab === "sentences" && <SentencesView client={client} project={project} capabilities={capabilities} sentencePage={sentencePage} sentenceIsFetching={sentenceIsFetching} chapters={chapters} chapter={sentenceChapter} chapterIndex={sentenceChapterIndex} onChapterIndex={onSentenceChapterIndex} selected={sentenceSelected} onToggleSentence={onToggleSentence} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={onToggleNarrationSidebar} />}{tab === "speakers" && <SpeakersView client={client} project={project} capabilities={capabilities} />}{tab === "queue" && <QueueView client={client} />}{tab === "export" && <ExportView client={client} project={project} />}</>;
+  return <>{tab === "overview" && <OverviewView client={client} project={project} />}{tab === "documents" && <DocumentsView client={client} project={project} />}{tab === "sentences" && <SentencesView client={client} project={project} capabilities={capabilities} sentencePage={sentencePage} sentenceIsFetching={sentenceIsFetching} chapters={chapters} chapter={sentenceChapter} chapterIndex={sentenceChapterIndex} onChapterIndex={onSentenceChapterIndex} selected={sentenceSelected} onToggleSentence={onToggleSentence} narrationSidebarOpen={narrationSidebarOpen} onToggleNarrationSidebar={onToggleNarrationSidebar} />}{tab === "speakers" && <SpeakersView client={client} project={project} capabilities={capabilities} />}{tab === "queue" && <QueueView client={client} />}{tab === "export" && <ExportView client={client} project={project} />}</>;
 }
 
 export { HealthView } from "../features/health/HealthView";

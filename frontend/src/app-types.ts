@@ -1,8 +1,9 @@
-export type Tab = "documents" | "sentences" | "speakers" | "queue" | "export" | "health";
+export type Tab = "overview" | "documents" | "sentences" | "speakers" | "queue" | "export" | "health";
 export type AppView = "home" | "project" | "settings" | "health";
 export type SettingsTab = "engines" | "app";
 
 export const projectTabItems = [
+  { id: "overview", icon: "◈" },
   { id: "documents", icon: "▣" },
   { id: "sentences", icon: "≡" },
   { id: "speakers", icon: "◉" },

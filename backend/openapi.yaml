@@ -62,6 +62,11 @@ paths:
         - {name: status, in: query, schema: {type: string}}
         - {name: speaker_id, in: query, schema: {type: string}}
       responses: {"200": {description: Chapters available for chapter-based sentence pagination}}
+  /v1/projects/{projectId}/overview:
+    parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
+    get:
+      operationId: getProjectOverview
+      responses: {"200": {description: Project production readiness, chapter progress, and blockers}}
   /v1/projects/{projectId}/sentences:
     parameters: [{name: projectId, in: path, required: true, schema: {type: string}}]
     get:

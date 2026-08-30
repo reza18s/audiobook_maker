@@ -21,6 +21,7 @@
 
 @media (max-width: 900px) {
   .speaker-layout { grid-template-columns: minmax(240px, .8fr) minmax(0, 1.2fr); gap: 16px; }
+  .project-readiness-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
