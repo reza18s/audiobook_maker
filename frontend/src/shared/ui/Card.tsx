@@ -40,7 +40,7 @@ export function Card({
       aria-labelledby={titleId}
     >
       {(title || description || actions) && (
-        <header className="settings-panel-heading">
+        <header className="card-heading">
           <div>
             {title && <h2 id={titleId}>{title}</h2>}
             {description && <p className="muted" id={descriptionId}>{description}</p>}
@@ -48,8 +48,8 @@ export function Card({
           {actions && <div className="inline-actions">{actions}</div>}
         </header>
       )}
-      {loading ? <div className="muted" role="status">{loadingLabel}</div> : children}
-      {footer && <footer className="inline-actions">{footer}</footer>}
+      {loading ? <div className="card-loading muted" role="status">{loadingLabel}</div> : children}
+      {footer && <footer className="card-footer inline-actions">{footer}</footer>}
     </Component>
   );
 }

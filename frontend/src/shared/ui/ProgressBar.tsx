@@ -32,7 +32,7 @@ export function ProgressBar({
   return (
     <div className="progress-wrapper">
       {(label || showValue) && (
-        <div className="sentence-summary">
+        <div className="progress-heading">
           <span>{label}</span>
           {showValue && <span>{loading ? "Loading…" : valueText}</span>}
         </div>

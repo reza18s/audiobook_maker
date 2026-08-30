@@ -8,7 +8,7 @@ import { PageHeader } from "../shared/ui/PageHeader";
 import { StatusBadge } from "../shared/ui/StatusBadge";
 
 export function SettingsView({ client, capabilities, section, onSection, onBack, onDisconnect, sidebarOpen, onToggleSidebar }: { client: ApiClient; capabilities: Capability[]; section: SettingsTab; onSection: (section: SettingsTab) => void; onBack: () => void; onDisconnect: () => void; sidebarOpen: boolean; onToggleSidebar: () => void }) {
-  return <div className={`settings-shell ${sidebarOpen ? "" : "settings-sidebar-closed"}`}><SettingsSidebar open={sidebarOpen} section={section} onSection={onSection} onBack={onBack} onDisconnect={onDisconnect} onToggle={onToggleSidebar} /><section className="settings-content">{section === "engines" ? <EngineSettings capabilities={capabilities} /> : <AppSettings client={client} onDisconnect={onDisconnect} />}</section></div>;
+  return <div className={`settings-shell ${sidebarOpen ? "" : "settings-sidebar-closed"}`}>{sidebarOpen && <button className="settings-drawer-backdrop" type="button" tabIndex={-1} aria-label="Close settings navigation" onClick={onToggleSidebar} />}<SettingsSidebar open={sidebarOpen} section={section} onSection={onSection} onBack={onBack} onDisconnect={onDisconnect} onToggle={onToggleSidebar} /><section className="settings-content">{section === "engines" ? <EngineSettings capabilities={capabilities} /> : <AppSettings client={client} onDisconnect={onDisconnect} />}</section></div>;
 }
 
 function SettingsSidebar({ open, section, onSection, onBack, onDisconnect, onToggle }: { open: boolean; section: SettingsTab; onSection: (section: SettingsTab) => void; onBack: () => void; onDisconnect: () => void; onToggle: () => void }) {

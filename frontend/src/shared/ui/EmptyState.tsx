@@ -26,10 +26,10 @@ export function EmptyState({
   return (
     <div
       {...props}
-      className={joinClasses("settings-empty", className)}
+      className={joinClasses("empty-state", className)}
       aria-busy={loading || undefined}
     >
-      <span className="settings-empty-icon" aria-hidden="true">{icon}</span>
+      <span className="empty-state-icon" aria-hidden="true">{icon}</span>
       <div>
         <strong>{title}</strong>
         {description && <p>{description}</p>}
