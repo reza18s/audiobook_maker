@@ -1,6 +1,0 @@
-[submodule "modules/F5-TTS"]
-	path = modules/F5-TTS
-	url = https://github.com/JarodMica/F5-TTS.git
-[submodule "modules/rvc-python"]
-	path = modules/rvc-python
-	url = https://github.com/JarodMica/rvc-python.git

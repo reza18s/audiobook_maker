@@ -541,7 +541,7 @@ Goal: make the current app trustworthy before adding more surface area.
 - Replace the fixed `All systems connected` copy with accurate states.
 - Verify the sibling engine image tags and `/health` responses.
 - Finish the open cutover tests: clean Windows installation, restart-safe import, retry/cancel, sentence review/regeneration, sample delivery, export progress/cancel, and backup/restore.
-- Document the supported Tauri path separately from deprecated PySide instructions.
+- Keep the supported Tauri and Docker workflow documented.
 - Keep automatic dependency/model downloads approval-gated.
 
 Acceptance criteria:

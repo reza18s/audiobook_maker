@@ -39,9 +39,9 @@ def main() -> int:
         print("Phase 9 cutover is not ready:")
         for failure in failures:
             print(f"- {failure}")
-        print("The legacy PySide frontend must remain available until runtime parity is verified.")
+        print("The PySide fallback has been removed; resolve engine image and runtime blockers before release.")
         return 1
-    print("Static Phase 9 cutover gate passed. Complete the runtime checklist before removing legacy code.")
+    print("Static Phase 9 checks passed. Complete the runtime checklist before release.")
     return 0
 
 

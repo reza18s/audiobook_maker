@@ -8,17 +8,9 @@ gateway, generation worker, media worker, and TTS engines run as services.
 - [Features](#features)
 - [Windows Package Installation](#windows-package-installation)
 - [Manual Installation Windows 10/11](#manual-installation-windows-1011)
-- [Text-to-Speech Engines](#text-to-speech-engines)
-- [Speech to Speech Engines](#speech-to-speech-engines)
+- [Engine services](#engine-services)
 - [Usage](#usage)
 - [Acknowledgements](#acknowledgements)
-
-### Install Specific Engines
-- [TortoiseTTS Installation](#tortoisetts-installation)
-- [StyleTTS 2 Installation](#styletts-2-installation)
-- [F5-TTS Installation](#f5-tts-installation)
-- [GPT-SoVITS Installation](#gpt-sovits-installation)
-- [RVC Installation](#rvc-installation)
 
 ## Features
 :heavy_check_mark: Multi-speaker/engine generation, allowing you to select who speaks which sentence etc.
@@ -33,7 +25,7 @@ gateway, generation worker, media worker, and TTS engines run as services.
 
 :heavy_check_mark: Sentence remapping in case you need to update the original text file that was used for generation
 
-:heavy_check_mark: Integration with popular open-source models like TortoiseTTS, RVC, StyleTTS, F5TTS, XTTS (to be added) and GPT-SoVITS
+:heavy_check_mark: Generation uses TTS engine workers configured for the connected gateway; available engines depend on the deployment.
 
 :heavy_check_mark: Project production dashboard with chapter progress, missing-voice blockers, stale-audio tracking, and export preflight
 
@@ -44,29 +36,20 @@ gateway, generation worker, media worker, and TTS engines run as services.
 :heavy_check_mark: Audiobook metadata, cover art, MP3/WAV export, and chaptered M4B export
 
 ## Windows Package Installation
-Available for Youtube Channel Members at the Supporter (Package) level: https://www.youtube.com/channel/UCwNdsF7ZXOlrTKhSoGJPnlQ/join or via purchase here: https://buymeacoffee.com/jarodsjourney/extras
-### Pre-requisites
-- NVIDIA GPU with at least 8GB of VRAM (for heavier inference models like Tortoise, 4-6 GB might be possible as we're not training here)
-- Please install the CUDA DEV toolkit here, else `CUDA_HOME` error will occur for RVC: https://developer.nvidia.com/cuda-12-1-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=11&target_type=exe_local
 
-1. Download the zip file provided to you on the members community tab.
-2. Unzip the folder
-3. To get StyleTTS, double-click and run `finish_styletts_install.bat`
-4. Run the `start.bat` file
+The Windows package is available through [YouTube channel membership](https://www.youtube.com/channel/UCwNdsF7ZXOlrTKhSoGJPnlQ/join) or [Buy Me a Coffee](https://buymeacoffee.com/jarodsjourney/extras).
 
-And that's it! (maybe)
-
-For **F5 TTS**, an additional download will be incurred when you first use it due to licensing of the pretrained base model being cc-by-nc-4.0
+The Windows client is the Tauri application. The gateway and TTS engine
+workers run separately; see the [Docker deployment guide](deploy/README.md)
+for setup.
 
 ## Manual Installation Windows 10/11
-### Pre-requistites
-- Python 3.11: https://www.python.org/downloads/release/python-3119/
-- git: https://git-scm.com/
-- vscode (optional): https://code.visualstudio.com/
-- ffmpeg: https://www.ffmpeg.org/download.html#build-windows
-  - Watch a tutorial here: https://www.youtube.com/watch?v=JR36oH35Fgg&t=159s&ab_channel=Koolac
-- NVIDIA GPU with at least 8GB of VRAM (for heavier inference models like Tortoise, 4-6 GB might be possible as we're not training here)
-- Install CUDA toolkit, see issue: https://github.com/JarodMica/audiobook_maker/issues/63#issuecomment-2430191713
+
+### Prerequisites
+
+- Docker Desktop for the local gateway and workers.
+- Rust with the stable MSVC toolchain and Bun when building the Tauri client.
+- NVIDIA Container Toolkit when using the NVIDIA engine profile; see the Docker deployment guide.
 
 ### Tauri desktop installation
 
@@ -77,11 +60,19 @@ for local and remote setup.
 1. Install Rust with the stable MSVC toolchain and install Bun.
 2. Copy `deploy/.env.example` to `deploy/.env`, then set real engine image
    names and a long API token.
-3. Start the gateway, generation worker, media worker, and engine services:
+3. Start the gateway, generation worker, and media worker:
    ```powershell
-   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+   .\start_docker.bat
    ```
-4. Build the Windows client:
+4. To include configured TTS workers, run:
+   ```powershell
+   .\start_docker.bat engines
+   ```
+   On a host with NVIDIA Container Toolkit, use:
+   ```powershell
+   .\start_docker.bat nvidia
+   ```
+5. Build the Windows client:
    ```powershell
    cd frontend
    bun install
@@ -91,204 +82,11 @@ for local and remote setup.
 After building, `start.bat` launches the Windows client. Without a release
 build it starts the Tauri development client.
 
-### Legacy PySide GUI Installation (deprecated)
-1. Clone the repository and cd into it.
-   ```
-   git clone https://github.com/JarodMica/audiobook_maker.git
-   cd audiobook_maker
-   ```
-2. Create a venv in python 3.11 and then activate it.  If you can't activate the python venv due to restricted permissions: https://superuser.com/questions/106360/how-to-enable-execution-of-powershell-scripts
-   ```
-   py -3.11 -m venv venv
-   .\venv\Scripts\activate
-   ```
-3. Install basic requirements to get the GUI opening
-   ```
-   pip install -r .\requirements.txt
-   ```
-4. Pull submodules
-   ```
-   git submodule init
-   git submodule update
-   ```  
-5. Launch the interface
-   ```
-   python .\src\controller.py
-   ```
-6. (Optional) I recommend you create a batch script to launch the gui instead of manually doing it each time. Open notepad, throw the code block below into it, name it `start.bat`, and it should be fine.  Make sure your extensions are showing so that it's not `start.bat.txt`
-   ```
-   call venv\Scripts\activate
-   python src\controller.py
-   ```
-Congrats, the GUI can be launched!  You should see in the errors in the terminal such as `Tortoise not installed` or `RVC not installed`
+## Engine Services
 
-If you use it like this, you will only be able to use pyttsx3.  To install additional engines, refer to the sections below to get the engines you want installed, I recommend you do all of them.
-
-## Text-to-Speech Engines
-### TortoiseTTS Installation
-0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):
-   ```
-   .\venv\Scripts\activate
-   ```
-1. Change directory to tortoise submodule, then pull its submodules:
-   ```
-   cd .\modules\tortoise_tts_api\
-   git submodule init
-   git submodule update
-   ```
-2. Install the submodules:
-   ```
-   pip install modules\tortoise_tts
-   pip install modules\dlas
-   ```
-3. Install the tortoise tts api repo, then cd back to root:
-   ```
-   pip install .
-   cd ..\..
-   ```
-4. Ensure requirements are at the versions they need to be at:
-   ```
-   pip install -r requirements.txt
-   ```
-5. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install)
-
-### StyleTTS 2 Installation
-0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):
-   ```
-   .\venv\Scripts\activate
-   ```
-1. Change directory to styletts submodule, then pull its submodules:
-   ```
-   cd .\modules\styletts-api\
-   git submodule init
-   git submodule update
-   ```
-2. Install the submodules:
-   ```
-   pip install modules\StyleTTS2
-   ```
-3. Install the styletts api repo, then cd back to root:
-   ```
-   pip install .
-   cd ..\..
-   ```
-4. Install monotonic align with the precompiled wheels that I've built [here](https://huggingface.co/Jmica/audiobook_models/blob/main/monotonic_align-1.2-cp311-cp311-win_amd64.whl), put in the repo root, and run the below command.  Will NOT work if you wanna use a different version of python:
-   ```
-   pip install monotonic_align-1.2-cp311-cp311-win_amd64.whl
-   ```
-   - Alternatively, if you are running a different python version, you will need microsoft c++ build tools to install it yourself: https://visualstudio.microsoft.com/downloads/?q=build+tools
-      ```
-      pip install git+https://github.com/resemble-ai/monotonic_align.git@78b985be210a03d08bc3acc01c4df0442105366f
-      ```
-   
-5. Get eSpeak-NG files and base STTS2 model by running the `finish_styletts_install.bat`:
-   ```
-   .\finish_styletts_install.bat
-   ```
-   - Alternatively, install eSpeak-NG onto your computer. Head over to https://github.com/espeak-ng/espeak-ng/releases and select the espeak-ng-X64.msi the assets dropdown. Download, run, and follow the prompts to set it up on your device. As of this write-up, it'll be at the bottom of 1.51 on the github releases page
-      - You will also need to add the following to your envrionment path:
-      ```
-      PHONEMIZER_ESPEAK_LIBRARY="c:\Program Files\eSpeak NG\libespeak-ng.dll"
-      PHONEMIZER_ESPEAK_PATH =“c:\Program Files\eSpeak NG”
-      ```
-6. Ensure requirements are at the versions they need to be at:
-   ```
-   pip install -r requirements.txt
-   ```
-7. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install)
-
-### F5-TTS Installation
-0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):
-   ```
-   .\venv\Scripts\activate
-   ```
-1. Install the legacy F5-TTS submodule:
-   ```
-   pip install .\modules\F5-TTS
-   ```
-2. Install the project requirements. This installs the separate F5-TTS 1.1.22
-   package while the application continues loading legacy mode from the submodule:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install).
-
-Both `F5TTS` (legacy) and `F5TTS 1.1.22` are available in the TTS Engine
-dropdown. They share reference voices, while 1.1.22 stores custom checkpoints
-and tokenizers under `engines/f5tts_1_1_22`.
-
-### GPT-SoVITS Installation
-0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):
-   ```
-   .\venv\Scripts\activate
-   ```
-1. Install the GPT-SoVITS-Package submodule:
-   ```
-   pip install .\modules\GPT-SoVITS-Package\
-   ```
-2. Install nltk requirements:
-   ```
-   python install_gpt_sovits_nltk.py
-   ```
-3. Ensure requirements are at the versions they need to be at:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Inside of , GPT-SoVITS base models will automatically be downloaded when first starting a generation.  Anytime there is a new update to the remote HF repo, it will download new files.  This behavior can be disabled by turning `auto_download_gpt_sovits` inside of `config\setting.yaml` to `False` instead of `True`.
-5. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install)
-
-## Speech-to-Speech Engines
-### RVC Installation
-0. Make sure your venv is still activated, if not, activate it, then [pull the repo to update if you are updating an older install](#updating-the-package):
-   ```
-   .\venv\Scripts\activate
-   ```
-1. Install fairseq as a wheels file.  Download it from this link here https://huggingface.co/Jmica/rvc/resolve/main/fairseq-0.12.4-cp311-cp311-win_amd64.whl?download=true and place it in the `audiobook_maker` :
-   ```
-   pip install .\fairseq-0.12.4-cp311-cp311-win_amd64.whl
-   ```
-    It's done this way due to issues with fairseq on python 3.11 and above so I've compiled a wheels file for you to use.  You can delete it afterwards if you want.
-
-2. Install the rvc-python library:
-   ```
-   pip install .\modules\rvc-python\
-   ```
-3. Ensure requirements are at the versions they need to be at:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Ensure you have pytorch installed with CUDA enabled [Check Torch Install](#check-torch-install)
-
-### Check Torch Install
-Sometimes, torch may be re-installed from other dependencies, so we want to be sure we're on the right version.
-
-Check torch version:
-```
-pip show torch
-```
-
-As long as torch `Version: 2.7.0+cu128`, you should be fine.  If not, follow below:
-> Blackwell GPUs (NVIDIA 50 series) need pytorch 2.7.0 or higher with CUDA 12.8 or above
-```
-pip uninstall torch -y
-pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
-```
-
-Torch is a pretty large download, so it may take a bit of time.  Once you have it installed here, it should be fine following the other install.  However, sometimes, newer versions of torch may uninstall the one we just did, so you may need to uninstall and reinstall after each engine to make sure you have the correction version.  After the first install, it will have been cached, so you won't have to wait each time afterwards.
-
-### Updating the Package
-If there are updates to the Audiobook Maker, you may need to `pull` new files from the source repo in order to gain access to new functionality. 
-1. Open up a terminal in the Audiobook Maker folder (if not openned alread) and run:
-   ```
-   git pull
-   git submodule update
-   ```
-If you run into issues where you can't pull the updates, you may have made edits to the code base.  In this case, you will need to `stash` your updates so that you can `pull` it.  I won't go over how you can reapply custom mods as that dives into git conflicts etc.
-   ```
-   git stash
-   git pull
-   git submodule update
-   ```
+TTS engines run as Docker services and are supplied by separately built or
+published engine images. See the [Docker deployment guide](deploy/README.md)
+for image configuration and startup options.
 
 ## Usage
 
