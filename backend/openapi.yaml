@@ -180,7 +180,7 @@ paths:
   /v1/events:
     get:
       operationId: progressEvents
-      description: WebSocket endpoint. Pass the API token as the token query parameter.
+      description: WebSocket endpoint. After connecting, send {"type": "auth", "token": "..."} as the first message within 5 seconds.
       responses: {"101": {description: Switching Protocols}}
 components:
   securitySchemes:

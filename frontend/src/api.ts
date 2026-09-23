@@ -157,13 +157,16 @@ export class ApiClient {
 
   events(onMessage: (message: unknown) => void): () => void {
     const url = new URL(`${this.baseUrl.replace(/^http/, "ws")}/v1/events`);
-    url.searchParams.set("token", this.token);
     let socket: WebSocket | null = null;
     let stopped = false;
     let reconnectTimer: number | undefined;
     const connect = () => {
       if (stopped) return;
       socket = new WebSocket(url);
+      socket.onopen = () => {
+        // First-message auth keeps the token out of URLs, logs, and history.
+        socket?.send(JSON.stringify({ type: "auth", token: this.token }));
+      };
       socket.onmessage = (event) => onMessage(JSON.parse(event.data as string));
       socket.onclose = () => {
         if (!stopped) reconnectTimer = window.setTimeout(connect, 1000);

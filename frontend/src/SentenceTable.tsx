@@ -65,7 +65,14 @@ export function SentenceTable({ sentences, speakers, selectedIds, onToggle, load
             <div className={`sentence-row ${selectedIds.has(sentence.id) ? "selected" : ""}`} key={sentence.id} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} style={{ transform: `translateY(${virtualRow.start}px)` }}>
               <label className="row-select"><Checkbox checked={selectedIds.has(sentence.id)} onChange={() => onToggle(sentence.id)} aria-label={`Select sentence ${sentence.sequence + 1}`} /><span className="sequence">{sentence.sequence + 1}</span></label>
               <Textarea defaultValue={sentence.text} onBlur={(event) => event.currentTarget.value !== sentence.text && onEdit(sentence, event.currentTarget.value)} />
-              <Select value={sentence.speaker_id ?? ""} onChange={(event) => onSpeaker(sentence, event.target.value)}>
+              <Select
+                className={`sentence-speaker-select ${sentence.speaker_id ? "" : "is-unassigned"}`}
+                value={sentence.speaker_id ?? ""}
+                onChange={(event) => onSpeaker(sentence, event.target.value)}
+                disabled={!speakers.length}
+                aria-label={`Assign speaker to sentence ${sentence.sequence + 1}`}
+                title={speakers.length ? "Assign a speaker" : "Add a speaker before assigning this sentence"}
+              >
                 <option value="">Unassigned</option>
                 {speakers.map((speaker) => <option value={speaker.id} key={speaker.id}>{speaker.name}</option>)}
               </Select>

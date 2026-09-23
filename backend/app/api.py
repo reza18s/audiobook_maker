@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 import shutil
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,9 @@ except ImportError:  # pragma: no cover - depends on optional deployment extras
 
 class ApiConfigurationError(ValueError):
     """The HTTP gateway is missing required deployment configuration."""
+
+
+DOCUMENT_MAX_BYTES = 100 * 1024 * 1024
 
 
 def create_app(
@@ -93,7 +97,8 @@ def create_app(
         store.close()
 
     def require_token(authorization: str | None = Header(default=None)) -> None:
-        if authorization != f"Bearer {expected_token}":
+        supplied = authorization.removeprefix("Bearer ") if authorization else ""
+        if not secrets.compare_digest(f"Bearer {supplied}", f"Bearer {expected_token}"):
             raise HTTPException(status_code=401, detail="invalid API token")
 
     def project_dir(project_id: str) -> Path:
@@ -224,6 +229,7 @@ def create_app(
                 while chunk := await file.read(1024 * 1024):
                     total_bytes += len(chunk)
                     if total_bytes > 20 * 1024 * 1024:
+                        output.close()
                         destination.unlink(missing_ok=True)
                         raise DatabaseError("cover must be 20 MB or smaller")
                     output.write(chunk)
@@ -272,8 +278,15 @@ def create_app(
             document_id = str(uuid4())
             destination = project_dir(project["id"]) / "documents" / f"{document_id}{suffix}"
             destination.parent.mkdir(parents=True, exist_ok=True)
+            total_bytes = 0
             with destination.open("wb") as output:
-                shutil.copyfileobj(file.file, output, length=1024 * 1024)
+                while chunk := file.file.read(1024 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > DOCUMENT_MAX_BYTES:
+                        output.close()
+                        destination.unlink(missing_ok=True)
+                        raise IngestionError("document is larger than the 100 MB upload limit")
+                    output.write(chunk)
             document = store.create_document(
                 project_id,
                 filename,
@@ -585,6 +598,7 @@ def create_app(
                 while chunk := await file.read(1024 * 1024):
                     total_bytes += len(chunk)
                     if total_bytes > 100 * 1024 * 1024:
+                        output.close()
                         destination.unlink(missing_ok=True)
                         raise DatabaseError("speaker sample must be 100 MB or smaller")
                     output.write(chunk)
@@ -719,10 +733,21 @@ def create_app(
 
     @app.websocket("/v1/events")
     async def events(websocket: WebSocket):
-        if websocket.query_params.get("token") != expected_token:
-            await websocket.close(code=1008)
-            return
         await websocket.accept()
+        try:
+            # First-message auth keeps the token out of URLs, logs, and history.
+            auth_raw = await asyncio.wait_for(websocket.receive_text(), timeout=5)
+            auth = json.loads(auth_raw)
+            supplied = auth.get("token") if isinstance(auth, dict) else None
+            authorized = isinstance(supplied, str) and secrets.compare_digest(supplied, expected_token)
+        except (WebSocketDisconnect, asyncio.TimeoutError, json.JSONDecodeError):
+            authorized = False
+        if not authorized:
+            try:
+                await websocket.close(code=1008)
+            except Exception:  # client already gone
+                return
+            return
         try:
             while True:
                 await websocket.send_json({

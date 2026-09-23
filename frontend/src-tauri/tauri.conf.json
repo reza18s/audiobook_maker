@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{ "title": "Audiobook Maker", "width": 1440, "height": 920, "minWidth": 980, "minHeight": 680 }],
-    "security": { "csp": "default-src 'self'; connect-src 'self' http://localhost:* ws://localhost:* http://*:* ws://*:*" }
+    "security": { "csp": "default-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*" }
   },
   "bundle": { "active": true, "targets": "nsis", "windows": { "wix": { "language": "en-US" } } }
 }

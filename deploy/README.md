@@ -9,6 +9,16 @@ published by the separate `audiobook-maker-engines` repository. When the
 
 ## Local host
 
+On Windows, run `start_docker.bat` from the repository root to build and start
+the gateway, generation worker, and media worker. Docker Desktop must be
+running, and `deploy\.env` must exist with a unique `AUDIOBOOK_API_TOKEN`.
+The script does not create or overwrite that file, and it refuses the example
+token until you replace it.
+
+To include the configured TTS engine containers, run
+`start_docker.bat engines`. For a Docker host with NVIDIA Container Toolkit,
+run `start_docker.bat nvidia` to include the GPU reservations.
+
 ```powershell
 Copy-Item deploy\.env.example deploy\.env
 # Edit deploy\.env and replace AUDIOBOOK_API_TOKEN
